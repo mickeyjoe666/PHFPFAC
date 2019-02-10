@@ -1,0 +1,27 @@
+Using Device 0: "GeForce GTX 1080"
+state num: 7844
+final state num: 2600
+
+Number of keys    : 7837
+Max Key           : 2007929
+width value       : 4096
+
+Max Offset        : 11412
+r table size      :     491  (   1964 Bytes)
+Hash table size   :   15270  (  61080 Bytes)
+Memory size       :   63044 Bytes
+Table utilization : 51.323 %
+(Number of keys / Hash table size)
+Table size ratio  : 0.785 %
+((r table size + Hash table size) / 2D PFAC table size)
+
+grid=(1, 1), num_blocks=1
+input_size = 2718 char
+1. H2D transfer time: 1.682805 ms
+   H2D throughput: 0.039687 GBps
+2. MASTER: The elapsed time is 3.151872 ms
+   MASTER: The throughput is 0.006899 Gbps
+3. D2H transfer time: 0.028382 ms
+   D2H throughput: 0.191530 GBps
+4. Total elapsed time: 4.863059 ms
+   Total throughput: 0.004471 Gbps
