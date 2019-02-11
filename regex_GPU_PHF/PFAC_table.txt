@@ -1,4 +1,8 @@
 state= 1  'a'(61) ->   2
 state= 2  'a'(61) ->   3
 state= 3  'a'(61) ->   4
-state= 5  'a'(61) ->   1
+state= 5  'b'(62) ->   6
+state= 6  'b'(62) ->   7
+state= 7  'b'(62) ->   8
+state= 9  'a'(61) ->   1
+state= 9  'b'(62) ->   5
