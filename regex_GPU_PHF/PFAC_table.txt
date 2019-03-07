@@ -1,14 +1,34 @@
 PFAC for GPU 0
-state= 0  'a'(61) ->   1
-state= 1  'a'(61) ->   2
-state= 2  'a'(61) ->   3
-state= 5  'a'(61) ->   0
+state= 0  't'(74) ->  10
+state= 4  'c'(63) ->   5
+state= 4  'd'(64) ->  13
+state= 5  'o'(6F) ->   6
+state= 6  'm'(6D) ->   7
+state= 7  'm'(6D) ->   8
+state= 8  'i'(69) ->   9
+state= 9  't'(74) ->   0
+state=10  'i'(69) ->  11
+state=11  'n'(6E) ->  12
+state=12  'g'(67) ->   1
+state=13  'o'(6F) ->  14
+state=14  'c'(63) ->   2
 
 
 PFAC for GPU 1
-state= 0  'b'(62) ->   1
-state= 1  'b'(62) ->   2
-state= 2  'b'(62) ->   3
-state= 5  'b'(62) ->   0
+state= 5  'e'(65) ->   6
+state= 5  'h'(68) ->  10
+state= 5  'i'(69) ->  11
+state= 5  'p'(70) ->  12
+state= 6  'a'(61) ->   7
+state= 7  'r'(72) ->   8
+state= 8  't'(74) ->   9
+state= 9  'h'(68) ->   0
+state=10  'e'(65) ->   1
+state=11  's'(73) ->   2
+state=12  'e'(65) ->  13
+state=13  'r'(72) ->  14
+state=14  's'(73) ->  15
+state=15  'o'(6F) ->  16
+state=16  'n'(6E) ->   3
 
 
