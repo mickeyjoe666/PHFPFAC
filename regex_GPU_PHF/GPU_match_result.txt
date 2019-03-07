@@ -46,6 +46,8 @@ At position   12, match pattern 7
 At position   13, match pattern 5
 At position   13, match pattern 6
 At position   14, match pattern 5
+At position   14, match pattern 5
+At position   14, match pattern 5
 At position   15, match pattern 1
 At position   15, match pattern 2
 At position   16, match pattern 1

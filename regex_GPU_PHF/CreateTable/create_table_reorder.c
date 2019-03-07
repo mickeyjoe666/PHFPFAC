@@ -3,18 +3,9 @@
 #include <string.h>
 #include "ctdef.h"
 
-// pattern structure
-struct ps {
-    int pattern_id;
-    int pattern_len;
-    char *pat;
-};
-
-typedef struct ps pattern_s;
-
-pattern_s all_pattern[MAX_STATE];
-int pattern_num;
-
+//pattern_s all_pattern[MAX_STATE];
+//int pattern_num;
+int GPU_N ;
 
 /****************************************************************************
 *   Function   : comp_pat
@@ -36,7 +27,7 @@ int comp_pat(const void *a, const void*b) {
     min_len = (str_len1 < str_len2) ? str_len1 : str_len2;
     
     result = memcmp(pat1->pat , pat2->pat, min_len);
-    
+
     if (result == 0) {
         if (str_len1 > str_len2)
             return 1;
@@ -55,13 +46,13 @@ int comp_pat(const void *a, const void*b) {
 *   Parameters : patternfilename - Pattern file name string
 *   Returned   : No use
 ****************************************************************************/
-int read_pattern(char *patternfilename) {
+pattern_s* read_pattern(char *patternfilename, int* pattern_num, pattern_s all_pattern[]) {
     int ch;
     char str[1024];  // pattern length must less than 1024 in PFAC algo
     int str_len;
     FILE *fpin;
     
-    pattern_num = 0;
+    *pattern_num = 0;
     
     // open input file
     fpin = fopen(patternfilename, "rb");
@@ -78,22 +69,22 @@ int read_pattern(char *patternfilename) {
             str[str_len++] = ch;
             
             if (str_len >= 1024) {
-                printf("Pattern %d length over 1024.\n", pattern_num+1);
+                printf("Pattern %d length over 1024.\n", *pattern_num+1);
                 exit(1);
             }
             
             if (ch == '\n') {
                 str_len -= 1;
-                pattern_num += 1;
+                *pattern_num += 1;
                 break;
             }
         }
         
         // put the read pattern to all_pattern[]
-        all_pattern[pattern_num].pattern_id = pattern_num;
-        all_pattern[pattern_num].pattern_len = str_len;
-        all_pattern[pattern_num].pat = (char *)malloc( str_len*sizeof(char) );
-        memcpy(all_pattern[pattern_num].pat, str, str_len*sizeof(char));
+        all_pattern[*pattern_num].pattern_id = *pattern_num;
+        all_pattern[*pattern_num].pattern_len = str_len;
+        all_pattern[*pattern_num].pat = (char *)malloc( str_len*sizeof(char) );
+        memcpy(all_pattern[*pattern_num].pat, str, str_len*sizeof(char));
         
         // check end-of-file
         ch = fgetc(fpin);
@@ -106,11 +97,9 @@ int read_pattern(char *patternfilename) {
     }
     
     // sort the patterns for correctness of creating table
-    qsort(&all_pattern[1], pattern_num, sizeof(pattern_s), comp_pat); 
+    qsort(&all_pattern[1], *pattern_num, sizeof(pattern_s), comp_pat); 
     
     fclose(fpin);
-    
-    return 0;
 }
 
 /****************************************************************************
@@ -120,13 +109,13 @@ int read_pattern(char *patternfilename) {
 *   Parameters : patternfilename - Pattern file name string
 *   Returned   : No use
 ****************************************************************************/
-int read_pattern_ext(char *patternfilename) {
+void read_pattern_ext(char *patternfilename, int* pattern_num, pattern_s all_pattern[]) {
     int ch;
     char str[1024];  // pattern length must less than 1024 in PFAC algo
     int str_len;
     FILE *fpin;
     
-    pattern_num = 0;
+    *pattern_num = 0;
     
     // open input file
     fpin = fopen(patternfilename, "rb");
@@ -143,22 +132,22 @@ int read_pattern_ext(char *patternfilename) {
             str[str_len++] = ch;
             
             if (str_len >= 1024) {
-                printf("Pattern %d length over 1024.\n", pattern_num+1);
+                printf("Pattern %d length over 1024.\n", *pattern_num+1);
                 exit(1);
             }
             
             if (ch == EOL) {
                 str_len -= 1;
-                pattern_num += 1;
+                *pattern_num += 1;
                 break;
             }
         }
         
         // put the read pattern to all_pattern[]
-        all_pattern[pattern_num].pattern_id = pattern_num;
-        all_pattern[pattern_num].pattern_len = str_len;
-        all_pattern[pattern_num].pat = (char *)malloc( str_len*sizeof(char) );
-        memcpy(all_pattern[pattern_num].pat, str, str_len*sizeof(char));
+        all_pattern[*pattern_num].pattern_id = *pattern_num;
+        all_pattern[*pattern_num].pattern_len = str_len;
+        all_pattern[*pattern_num].pat = (char *)malloc( str_len*sizeof(char) );
+        memcpy(all_pattern[*pattern_num].pat, str, str_len*sizeof(char));
         
         // check end-of-file
         ch = fgetc(fpin);
@@ -171,11 +160,9 @@ int read_pattern_ext(char *patternfilename) {
     }
     
     // sort the patterns for correctness of creating table
-    qsort(&all_pattern[1], pattern_num, sizeof(pattern_s), comp_pat); 
+    qsort(&all_pattern[1], *pattern_num, sizeof(pattern_s), comp_pat); 
     
     fclose(fpin);
-    
-    return 0;
 }
 
 /****************************************************************************
@@ -192,40 +179,99 @@ int read_pattern_ext(char *patternfilename) {
 *                      pattern length
 *   Returned   : No use (total number of state)
 ****************************************************************************/
-int create_table_reorder(char *patternfilename, int *state_num, int *final_state_num, int ext, int* max_pat_length) {
-    int i, j;
+int create_table_reorder(char *patternfilename, int *state_num, int *final_state_num, int ext, int* max_pat_length_arr, int* max_pat_len, int *** PFACs, int** patternIdMaps) {
+    int i, j, x;
     int ch;
     int state;          // to traverse transition table
     int state_count;    // counter for creating new state
-    int initial_state;
-    pattern_s cur_pat;
-    
-    // initialize transition table
-    for (i = 0; i < MAX_STATE; i++) {
-        for (j = 0; j < CHAR_SET; j++) {
-            PFAC_table[i][j] = -1;
-        }
-    }
-    
+    int initial_state, pattern_num;
+    //pattern_s all_pattern[MAX_STATE];
+    pattern_s* all_pattern = (pattern_s*)malloc(MAX_STATE*sizeof(pattern_s));    
+
     // select normal mode or extension mode
     if (ext == 0)
-        read_pattern(patternfilename);
+        read_pattern(patternfilename, &pattern_num, all_pattern);
     else
-        read_pattern_ext(patternfilename);
-    
+        read_pattern_ext(patternfilename, &pattern_num, all_pattern);
+ 
+    cudaGetDeviceCount(&GPU_N);
+
+    //the number of patterns to feed to GPUs 0 to GPU_N-2
+    int k = pattern_num/GPU_N;
+    //the number of patterns to ffed to GPU GPU_N-1. (GPU_N-2)*k + l = pattern_num.
+    int l = k + pattern_num%GPU_N;
+
+    //Allocate and initialise memory for the PFACs
+    for (x =0 ; x < GPU_N ; x++){
+        PFACs[x] = (int**)malloc(MAX_STATE*sizeof(int*));
+        for (i = 0; i < MAX_STATE; i++) {
+            PFACs[x][i] =(int*) malloc(CHAR_SET*sizeof(int));
+            for (j = 0; j < CHAR_SET; j++) {
+                (PFACs[x])[i][j] = -1;
+            }
+        }
+    }
+
+    //Array of array of patterns. Each divided_pattenrs[i] corresponds to the patterns of each GPU_i
+    pattern_s** divided_patterns = divide_patterns(all_pattern, pattern_num);
+
+    for (i = 0;i< GPU_N-1; i++){
+         patternIdMaps[i] = (int*)malloc(k*sizeof(int));
+         patternsToPFAC(divided_patterns[i], k, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
+         if (max_pat_length_arr[i] > *max_pat_len) *max_pat_len = max_pat_length_arr[i];
+         final_state_num[i] = k;
+    }
+
+    patternIdMaps[i] = (int*)malloc(l*sizeof(int));
+    patternsToPFAC(divided_patterns[i], l, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
+    final_state_num[i] = l;
+   
+}
+
+pattern_s** divide_patterns(pattern_s all_pattern[], int pattern_num) {
+    pattern_s** result;
+    result = (pattern_s**)malloc(GPU_N * sizeof(pattern_s*));
+    int i, j, k, l;
+    k = pattern_num/GPU_N;
+    l = k + pattern_num%GPU_N;
+
+    for (i = 0; i <GPU_N-1; i++){
+        result[i] = (pattern_s*)malloc(k* sizeof(pattern_s));
+        for (j = 0; j <k; j++){
+            //all_pattern is indexed from 1.
+            result[i][j] = all_pattern[i*k+j+1];
+        }
+
+    }
+
+    result[i] = (pattern_s*)malloc(l*sizeof(pattern_s));
+    for(j=0; j< l; j++){
+         result[i][j] = all_pattern[i*k+j+1];
+    }
+    return result;
+}
+
+
+void patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max_pat_length, int *state_num, int patternIdMap[]){
+
+    int state_count;
+    int state;
+    int initial_state;
+    int ch;
+    pattern_s cur_pat;
+    int j;
+
     // final states are state[1] ~ state[n], n is number of pattern
-    *final_state_num = pattern_num;
-    initial_state = *final_state_num + 1;
+    initial_state = pattern_num + 1;
     // state start from initial state
     state = initial_state;
     // create new state from (initial_state+1)
     state_count = initial_state + 1;
-    
-    // traverse all_pattern[] and create the transition table
-    for (i = 1; i <= pattern_num; i++) {
+
+    for (int i = 0; i < pattern_num; i++) {
         // load current pattern
-        cur_pat = all_pattern[i];
-        
+        cur_pat = patterns[i];
+        patternIdMap[i] = cur_pat.pattern_id;
         if (cur_pat.pattern_len > *max_pat_length ) {
            *max_pat_length = cur_pat.pattern_len;
         } 
@@ -233,20 +279,19 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
         // create transition according to pattern
         for (j = 0; j < cur_pat.pattern_len-1; j++) {
             ch = (unsigned char)cur_pat.pat[j];
-            
-            if (PFAC_table[state][ch] == -1) {
-                PFAC_table[state][ch] = state_count;
+            if (PFAC[state][ch] == -1) {
+                PFAC[state][ch] = state_count;
                 state = state_count;
                 state_count += 1;
             }
             else {
-                state = PFAC_table[state][ch];
+                state = PFAC[state][ch];
             }
         }
-        
+
         // the ending char will create a transition to corresponding final state
         ch = (unsigned char)cur_pat.pat[j];
-        PFAC_table[state][ch] = cur_pat.pattern_id;
+        PFAC[state][ch] = i;
         // initialize state to load next pattern
         state = initial_state;
         
@@ -256,8 +301,5 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
             exit(1);
         }
     }
-    
     *state_num = state_count;
-    
-    return state_count;
 }

@@ -16,14 +16,14 @@ struct RowStruct {    // structure for each row of Keys[][]
 };
 
 // the arrays Keys[][], r[] and HT[] are those in the article "Perfect Hashing"
-int Keys[ROW_MAX][COL_MAX];     // Keys[i][j]=K (i=K/w, j=K mod w) for each key K
-extern int r[ROW_MAX];          // r[R]=amount row Keys[R][] was shifted
-extern int HT[HASHTABLE_MAX];   // the shifted rows of Keys[][] collapse into HT[]
+//int Keys[ROW_MAX][COL_MAX];     // Keys[i][j]=K (i=K/w, j=K mod w) for each key K
+////extern int r[ROW_MAX];          // r[R]=amount row Keys[R][] was shifted
+//extern int HT[HASHTABLE_MAX];   // the shifted rows of Keys[][] collapse into HT[]
 
-extern int val[HASHTABLE_MAX];  // store next state corresponding to hash key, not used in this version
+//extern int val[HASHTABLE_MAX];  // store next state corresponding to hash key, not used in this version
 
 // Row[] exists to facilitate sorting the rows of Keys[][] by their "fullness"
-struct RowStruct Row[ROW_MAX];  // entry counts for the rows in Keys[][]
+//struct RowStruct Row[ROW_MAX];  // entry counts for the rows in Keys[][]
 
 
 /****************************************************************************
@@ -35,7 +35,7 @@ struct RowStruct Row[ROW_MAX];  // entry counts for the rows in Keys[][]
 *                HTSize - Size of hash table
 *   Returned   : Value corresponding to queried key or -1 (not in hash table)
 ****************************************************************************/
-int PHF(int queryKey, int width, int HTSize) {
+/*int PHF(int queryKey, int width, int HTSize) {
     int row, col, index;
     
     row = queryKey / width;
@@ -47,7 +47,7 @@ int PHF(int queryKey, int width, int HTSize) {
     }
     
     return -1;
-}
+}*/
 
 /****************************************************************************
 *   Function   : InitArrays
@@ -55,19 +55,20 @@ int PHF(int queryKey, int width, int HTSize) {
 *   Parameters : None
 *   Returned   : No use
 ****************************************************************************/
-void InitArrays(void) {
+void InitArrays(int** Keys, int r[], int HT[], RowStruct Row[]) {
     int row;
     
-	// initialize following arrays to -1
-    memset ( Keys, 0xFF, ROW_MAX*COL_MAX*sizeof(int) );    
+    // initialize following arrays to -1
+    //memset ( Keys, 0xFF, ROW_MAX*COL_MAX*sizeof(int) );    
     memset ( r, 0xFF, ROW_MAX*sizeof(int) );
     memset ( HT, 0xFF, HASHTABLE_MAX*sizeof(int) );
-    memset ( val, 0xFF, HASHTABLE_MAX*sizeof(int) );
+    //memset ( val, 0xFF, HASHTABLE_MAX*sizeof(int) );
     
     for (row = 0; row < ROW_MAX; row++) {
         Row[row].RowNumber  = row;   // insert the row numbers and
         Row[row].RowItemCnt = 0;     // indicate that each row is empty
         Row[row].RowItemIdx = NULL;  // the item index in the row
+        memset(Keys[row], 0xFF, COL_MAX*sizeof(int));
     }
 }
 
@@ -82,7 +83,7 @@ void InitArrays(void) {
 *                MaxKey - Address of varible to store max key number
 *   Returned   : No use
 ****************************************************************************/
-int ReadKey(int *ary, int ary_size, int width, int *KeyCount, int *MaxKey) {
+int ReadKey(int** ary, int ary_size, int width, int *KeyCount, int *MaxKey, int** Keys, RowStruct Row[]) {
     int key;
     int row, col;
     
@@ -90,8 +91,8 @@ int ReadKey(int *ary, int ary_size, int width, int *KeyCount, int *MaxKey) {
     *MaxKey = 0;
     
     // fill data structures using key data
-    for (key = 0; key < ary_size; key++) {
-        if (ary[key] < 0) continue;
+    for (key = 0; key < ary_size*CHAR_SET; key++) {
+        if (ary[key/CHAR_SET][key%CHAR_SET] < 0) continue;
         row = key / width;
         col = key % width;
         if (row >= ROW_MAX) {
@@ -118,7 +119,7 @@ int ReadKey(int *ary, int ary_size, int width, int *KeyCount, int *MaxKey) {
 *   Parameters : numRow - Key array, corresponding to PFAC table
 *   Returned   : None
 ****************************************************************************/
-void SortRows(int numRow) {
+void SortRows(int numRow, RowStruct Row[]) {
     int i, j;
     struct RowStruct tmp;
     
@@ -143,21 +144,26 @@ void SortRows(int numRow) {
 *                width - The width of key table
 *   Returned   : Size of hash table
 ****************************************************************************/
-int FFDM(int *ary, int ary_size, int width) {
+int FFDM(int **ary, int ary_size, int width, int* r, int* HT) {
     int NumKeys, MaxKey, MaxOffset, MaxRow, HTSize = 0;
     int i, ndx, rc, row, col, key, mergeVal;
     int offset, rowItemCnt;
     int *rowPtr;
-    
+    int** Keys = (int**)malloc(ROW_MAX*sizeof(int*));
+    for (int Keysrow = 0; Keysrow < ROW_MAX; Keysrow++) {
+        Keys[Keysrow] = (int*)malloc(COL_MAX*sizeof(int));
+    } 
+    RowStruct* Row = (RowStruct*)malloc(ROW_MAX*sizeof(RowStruct));
+  
     if (width > COL_MAX) {
         printf("width may not exceed %d\n", COL_MAX);
         exit(-1);
     }
-    
-    InitArrays();
+ 
+    InitArrays(Keys, r, HT, Row);
     
     // read in the user's key data
-    rc = ReadKey(ary, ary_size, width, &NumKeys, &MaxKey);
+    rc = ReadKey(ary, ary_size, width, &NumKeys, &MaxKey, Keys, Row);
     if (rc != 0) {
         printf("ReadKey() failed with error %d\n", rc);
         exit(rc);
@@ -165,7 +171,7 @@ int FFDM(int *ary, int ary_size, int width) {
     
     // prime the algorithm - sort the rows by their fullness
     MaxRow = MaxKey / width + 1;
-    SortRows( MaxRow );
+    SortRows( MaxRow, Row );
     
     // do the First-Fit Descending Method algorithm
     // For each non-empty row:
@@ -197,7 +203,7 @@ int FFDM(int *ary, int ary_size, int width) {
                     key = row * width + col;
                     mergeVal = 0;
                     mergeVal |= row;
-                    mergeVal |= (ary[key] << 15);
+                    mergeVal |= (ary[key/CHAR_SET][key%CHAR_SET] << 15);
                     HT[offset+col] = mergeVal;
                     // HT[offset+col] = row;
                     // val[offset+col] = ary[key];
