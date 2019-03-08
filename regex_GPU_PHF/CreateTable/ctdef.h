@@ -6,7 +6,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_STATE  131072*6  // max number of state in 17 bits
+#define MAX_STATE  131072  // max number of state in 17 bits
 //why max_state use this number?
 #define CHAR_SET   256     // ASCII character set
 #define EOL        0x10A   // merge '\' and 'n' into escape char '\n'(LF)

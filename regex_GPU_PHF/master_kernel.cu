@@ -47,9 +47,9 @@ texture < int, 1, cudaReadModeElementType > tex_HT;
             } \
             \
             if (state == -1) break; \
-            if (state <= num_final_state) { \
-            match[yang123] = state; \
-            yang123++; \
+            if (state < num_final_state) { \
+              match[yang123] = state; \
+              yang123++; \
             } \
             pos += 1; \
         } \
@@ -100,9 +100,11 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
 
     pos = start;
     // move data from global to shared memory
-    s_in_i[tid] = d_in_i[pos];
-    s_in_i[BLOCK_SIZE + tid] = d_in_i[BLOCK_SIZE + pos];
-    if (tid < EXTRA_SIZE_PER_TB) {
+    if(tid < PAGE_SIZE_I + EXTRA_SIZE_PER_TB)
+      s_in_i[tid] = d_in_i[pos];
+    if(BLOCK_SIZE + tid < PAGE_SIZE_I + EXTRA_SIZE_PER_TB)
+      s_in_i[BLOCK_SIZE + tid] = d_in_i[BLOCK_SIZE + pos];
+    if (tid < EXTRA_SIZE_PER_TB && 2* BLOCK_SIZE + tid < PAGE_SIZE_I + EXTRA_SIZE_PER_TB) {
         s_in_i[2 * BLOCK_SIZE + tid] = d_in_i[2 * BLOCK_SIZE + pos];
     }
     if (tid < CHAR_SET) {
@@ -130,8 +132,12 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
     #pragma unroll
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < max_pat_len; j++) {
-            d_match_result[start*max_pat_len + i*max_pat_len*BLOCK_SIZE + j] = match[i][j];
+            if(start*max_pat_len + i*max_pat_len*BLOCK_SIZE + j < max_pat_len * input_size) {
+              d_match_result[start*max_pat_len + i*max_pat_len*BLOCK_SIZE + j] = match[i][j];
+            }
+            if(match[i][j]<-1) printf("???\n");
         }
+        free(match[i]);
     }
 }
 
@@ -164,7 +170,7 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
             } \
             \
             if (state == -1) break; \
-            if (state <= num_final_state) { \
+            if (state < num_final_state) { \
             match[yang123] = state; \
             yang123++; \
             } \
@@ -393,6 +399,9 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 
         clock_gettime( CLOCK_REALTIME, &transOutTime_begin);
         cudaMemcpy(match_result, d_match_result, sizeof(short)*max_pat_len*input_size, cudaMemcpyDeviceToHost);
+        for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
+          if(match_result[testindex] < -1) printf("Negative value %d at index %d\n", match_result[testindex], testindex);
+        }
         clock_gettime( CLOCK_REALTIME, &transOutTime_end);
         transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
         transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
@@ -412,6 +421,9 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         cudaFree(d_hash_table);
         cudaFree(d_match_result);
         cudaFree(d_s0Table);
+        for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
+          if(match_result[testindex] < -1) printf("2Negative value %d at index %d\n", match_result[testindex], testindex);
+        }
 
         return 0 ;
 }

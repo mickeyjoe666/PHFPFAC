@@ -131,7 +131,8 @@ int main(int argc, char *argv[]) {
         }
 
         // allocate host memory: match result
-        status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(short)*input_size*max_pat_len_arr[GPUnum]);
+        //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(short)*input_size*max_pat_len_arr[GPUnum]);
+        status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(short)*input_size*max_pat_len_arr[GPUnum], cudaHostAllocPortable);
         if (cudaSuccess != status) {
             fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
             exit(1);
@@ -172,8 +173,11 @@ int main(int argc, char *argv[]) {
     //TODO: synchronise threads that did the matching once the above TODO is done
     cudaFreeHost(input_string);
 
-    short* match_result_aggreg = (short*)malloc(sizeof(short)*input_size*max_pat_len);
-    memset(match_result_aggreg, 0xFF, sizeof(short)*input_size*max_pat_len);
+    int* match_result_aggreg = (int*)malloc(sizeof(int)*input_size*max_pat_len);
+    memset(match_result_aggreg, 0xFF, sizeof(int)*input_size*max_pat_len);
+    for(int i = 0; i < input_size * max_pat_len; i++) {
+        if(match_result_aggreg[i] != -1) printf("Thomas is stupid\n");
+    }
     for (int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
         for (i = 0; i < input_size; i++) {
             int k = i * max_pat_len;
@@ -182,12 +186,16 @@ int main(int argc, char *argv[]) {
                 if(match_result[GPUnum][i*max_pat_len_arr[GPUnum]+j] != -1) {
                     int matched_id = patternIdMaps[GPUnum][match_result[GPUnum][i*max_pat_len_arr[GPUnum]+j]];
                     match_result_aggreg[k++] = matched_id;
+                    if(matched_id < -1) printf("negative matched id: %d, GPUnum: %d i: %d j: %d\n", matched_id, GPUnum, i, j);
                 }
                 else
                     break;
             }
         }
         cudaFreeHost(match_result[GPUnum]);
+    }
+    for(int i = 0; i < input_size * max_pat_len; i++) {
+        if(match_result_aggreg[i] < -1) printf("Dark magic!!!\n");
     }
 
     char* output_file_name = "GPU_match_result.txt";
@@ -200,6 +208,7 @@ int main(int argc, char *argv[]) {
         for (j = 0; j < max_pat_len; j++){
             if (match_result_aggreg[i*max_pat_len+j] != -1) {
                 fprintf(fpout1, "At position %4d, match pattern %d\n", i, match_result_aggreg[i*max_pat_len+j]);
+                //if(match_result_aggreg[i*max_pat_len+j] < -1) printf("negative matched id: %d, at index %d: i:%d j:%d\n", match_result_aggreg[i*max_pat_len+j], i*max_pat_len+j, i, j);
             } else {
                 break;
             }
