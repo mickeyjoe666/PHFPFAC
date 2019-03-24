@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
         GPU_TraceTable(input_string, input_size, state_num[GPUnum], final_state_num[GPUnum],
                    match_result[GPUnum], HTSize[GPUnum], width, PFACs[GPUnum][(final_state_num[GPUnum]+1)],
                    max_pat_len_arr[GPUnum], r[GPUnum], HT[GPUnum]);
-
+        printf("test input size bug5 \n");
         // Output results
         //char output_file_name[100] = "GPU_match_result";
         //char number[10];

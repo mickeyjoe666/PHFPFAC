@@ -393,18 +393,21 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         cudaEventElapsedTime(&time, start, stop);
         printf("2. MASTER: The elapsed time is %f ms\n", time);
         printf("   MASTER: The throughput is %f Gbps\n",(float)(input_size)/(time*1000000)*8 );
-
+        printf("test input size bug0 \n");
         cudaEventDestroy(start);
         cudaEventDestroy(stop);
-
+        printf("test input size bug1 \n");
         clock_gettime( CLOCK_REALTIME, &transOutTime_begin);
         cudaMemcpy(match_result, d_match_result, sizeof(short)*max_pat_len*input_size, cudaMemcpyDeviceToHost);
-        for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
-          if(match_result[testindex] < -1) printf("Negative value %d at index %d\n", match_result[testindex], testindex);
-        }
+        printf("test input size bug2 \n");
+        // for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
+        //   if(match_result[testindex] < -1) printf("Negative value %d at index %d\n", match_result[testindex], testindex);
+        // }
+        printf("test input size bug3 \n");
         clock_gettime( CLOCK_REALTIME, &transOutTime_end);
         transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
         transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
+        printf("test input size bug4 \n");
         printf("3. D2H transfer time: %lf ms\n", transOutTime);
         printf("   D2H throughput: %lf GBps\n", (input_size*sizeof(short))/(transOutTime*1000000));
 
@@ -421,9 +424,9 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         cudaFree(d_hash_table);
         cudaFree(d_match_result);
         cudaFree(d_s0Table);
-        for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
-          if(match_result[testindex] < -1) printf("2Negative value %d at index %d\n", match_result[testindex], testindex);
-        }
+        // for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
+        //   if(match_result[testindex] < -1) printf("2Negative value %d at index %d\n", match_result[testindex], testindex);
+        // }
 
         return 0 ;
 }
