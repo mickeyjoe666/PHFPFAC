@@ -199,14 +199,17 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
                     MaxOffset = offset;
                 }
                 printf ("the maxoffset is %d\n",MaxOffset);
+                printf ("the rowItemCnt is %d\n",rowItemCnt);
                 for (i = 0; i < rowItemCnt; i++) {  // insert this row into the hash table
                     col = rowPtr[i];
                     key = row * width + col;
+                    printf ("the row is %d\n",row);
                     //mergeVal = 0;
                     //mergeVal |= row;
                     //mergeVal |= (ary[key/CHAR_SET][key%CHAR_SET] << 15);
                     //HT[offset+col] = mergeVal;
                      HT[offset+col] = row;
+                    printf ("the HT[i] is %d\n",HT[i]);
                      //printf ("the offset is %d\n",offset);
                      //printf ("the key is %d\n",key);
                      //printf ("the key is %d\n",key/CHAR_SET);
@@ -227,12 +230,11 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
     
     // compute hash table size
     for (i = MaxOffset; i < MaxOffset + width; i++) {
-        if (HT[i] > 0) {
+        if (HT[i] > 0 || val[i] > 0 ) {
             HTSize = i + 1;
         }
     }
-    printf("Table utilization : \033[92m%.3f %%\033[m\n", 100.0f*NumKeys );
-    printf("Table utilization : \033[92m%.3f %%\033[m\n", HTSize/2 );
+
     
 #ifdef SHOW_PHF
 //    // print the results

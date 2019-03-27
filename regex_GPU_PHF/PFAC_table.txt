@@ -4,10 +4,9 @@ state= 3  'a'(61) ->   0
 
 
 PFAC for GPU 1
-state= 0  'a'(61) ->   6
+state= 0  'a'(61) ->   1
 state= 3  'a'(61) ->   4
 state= 4  'a'(61) ->   5
 state= 5  'a'(61) ->   0
-state= 6  'a'(61) ->   1
 
 
