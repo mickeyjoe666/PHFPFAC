@@ -12,8 +12,8 @@
 #define initial_state (num_final_state+1)
 #define CHAR_SET 256
 
-texture < int, 1, cudaReadModeElementType > tex_r;
-texture < int, 1, cudaReadModeElementType > tex_HT;
+//texture < int, 1, cudaReadModeElementType > tex_r;
+//texture < int, 1, cudaReadModeElementType > tex_HT;
 
 // First, look up s_s0Table to jump from initial state to next state.
 // If the thread in still alive, then keep tracing HT (hash table)
@@ -35,19 +35,19 @@ texture < int, 1, cudaReadModeElementType > tex_HT;
             int key = (state << 8) + inputChar; \
             int row = key >> width_bit; \
             int col = key & ((1<<width_bit)-1); \
-            int index = tex1Dfetch(tex_r, row) + col; \
+            int index = d_r[row] + col; \
             if (index >= HTSize) \
                 state = -1; \
             else { \
-                int hashValue = tex1Dfetch(tex_HT, index); \
-                if ((hashValue & 0x7FFF) == row) \
-                    state = (hashValue >> 15) & 0x1FFFF ; \
-                else \
+                  int hashValue = d_hash_table[index]; \
+                  if ((hashValue) == row) \
+                    state = d_val_table[index] ; \
+                  else \
                     state = -1; \
             } \
             \
             if (state == -1) break; \
-            if (state < num_final_state) { \
+            if (state <= num_final_state) { \
               match[yang123] = state; \
               yang123++; \
             } \
@@ -72,7 +72,8 @@ texture < int, 1, cudaReadModeElementType > tex_HT;
 ****************************************************************************/
 __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_size,
                                   int HTSize, int width_bit, int num_final_state, int MaxRow,
-                                  int num_blocks, int boundary, int *d_s0Table, int max_pat_len) {
+                                  int num_blocks, int boundary, int *d_s0Table, int* d_r, int* d_hash_table,
+                                  int* d_val_table, int max_pat_len) {
     int tid = threadIdx.x;
     int gbid = blockIdx.y * gridDim.x + blockIdx.x;   // global block ID
     int start = gbid * PAGE_SIZE_I + tid;
@@ -158,19 +159,19 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
         while (1) { \
             if (pos >= bdy) break; \
             inputChar = s_in_c[pos]; \
-            int index = tex1Dfetch(tex_r, state) + inputChar; \
+            int index = d_r[state] + inputChar; \
             if (index >= HTSize) \
                 state = -1; \
             else { \
-                int hashValue = tex1Dfetch(tex_HT, index); \
-                if ((hashValue & 0x7FFF) == state) \
-                    state = (hashValue >> 15) & 0x1FFFF ; \
+                int hashValue = d_hash_table[index]; \
+                if (hashValue == state) \
+                    state = d_val_table[index] ; \
                 else \
                     state = -1; \
             } \
             \
             if (state == -1) break; \
-            if (state < num_final_state) { \
+            if (state <=num_final_state) { \
             match[yang123] = state; \
             yang123++; \
             } \
@@ -197,7 +198,8 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
 ****************************************************************************/
 __global__ void TraceTable_kernel_fast(short *d_match_result, int *d_in_i,
                                        int input_size, int HTSize, int num_final_state, int MaxRow,
-                                       int num_blocks, int boundary, int *d_s0Table, int max_pat_len) {
+                                       int num_blocks, int boundary, int *d_s0Table,
+                                       int* d_r, int* d_hash_table, int* d_val_table, int max_pat_len) {
     int tid = threadIdx.x;
     int gbid = blockIdx.y * gridDim.x + blockIdx.x;   // global block ID
     int start = gbid * PAGE_SIZE_I + tid;
@@ -270,13 +272,19 @@ __global__ void TraceTable_kernel_fast(short *d_match_result, int *d_in_i,
 ****************************************************************************/
 int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
                    int final_state_num, short* match_result, int HTSize, int width,
-                   int *s0Table, int max_pat_len, int r[], int HT[])
+                   int *s0Table, int max_pat_len, int r[], int HT[], int val[])
 {
         cudaError_t cuda_err;
         struct timespec transInTime_begin, transInTime_end;
         double transInTime;
         struct timespec transOutTime_begin, transOutTime_end;
         double transOutTime;
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("before malloc memory: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
 
         // set BLOCK_SIZE threads per block, set grid size automatically
         int dimBlock = BLOCK_SIZE ;
@@ -304,15 +312,54 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         int *d_r;
         int *d_hash_table;
         short *d_match_result;
+        int *d_val_table;//add by qiao 0324
         int *d_s0Table;
         int MaxRow;
 
+
         MaxRow = (state_num*CHAR_SET) / width + 1;
         cudaMalloc((void **) &d_input_string, num_blocks*PAGE_SIZE_C+EXTRA_SIZE_PER_TB*sizeof(int) );
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after malloc memory1: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
         cudaMalloc((void **) &d_r, MaxRow*sizeof(int) );
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after malloc memory2: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
         cudaMalloc((void **) &d_hash_table, HTSize*sizeof(int) );
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after malloc memory3: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
+        cudaMalloc((void **) &d_val_table, HTSize*sizeof(int) );//add by qiao 0324
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after malloc memory4: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
         cudaMalloc((void **) &d_match_result, max_pat_len*input_size*sizeof(short));
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after malloc memory5: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
         cudaMalloc((void **) &d_s0Table, CHAR_SET*sizeof(int));
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after malloc memory6: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
 
         clock_gettime( CLOCK_REALTIME, &transInTime_begin);
         // copy input string from host to device
@@ -320,13 +367,18 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         cudaMemcpy(d_r, r, MaxRow*sizeof(int), cudaMemcpyHostToDevice);
         cudaMemcpy(d_hash_table, HT, HTSize*sizeof(int), cudaMemcpyHostToDevice);
         cudaMemcpy(d_s0Table, s0Table, CHAR_SET*sizeof(int), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_val_table, val, HTSize*sizeof(int), cudaMemcpyHostToDevice);//add by qiao 0324
         clock_gettime( CLOCK_REALTIME, &transInTime_end);
         transInTime = (transInTime_end.tv_sec - transInTime_begin.tv_sec) * 1000.0;
         transInTime += (transInTime_end.tv_nsec - transInTime_begin.tv_nsec) / 1000000.0;
         printf("1. H2D transfer time: %lf ms\n", transInTime);
         printf("   H2D throughput: %lf GBps\n", (input_size+MaxRow*sizeof(int)+HTSize*sizeof(int)+CHAR_SET*sizeof(int))
                                                 /(transInTime*1000000));
-
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after malloc memory7: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
          //size_t free_mem, total_mem ;
          //cudaError_t mem_info = cudaMemGetInfo( &free_mem, &total_mem);
          //if ( cudaSuccess != mem_info ) {
@@ -337,19 +389,26 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 
         // set texture memory for hash table on device
         // cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc <int> ();  // another usage
-        cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc (sizeof(int)*8, 0, 0, 0, cudaChannelFormatKindSigned);
-        cuda_err = cudaBindTexture(0, tex_r, d_r, channelDesc, MaxRow*sizeof(int));
-        if ( cudaSuccess != cuda_err ){
-            printf("cudaBindTexture on tex_r error\n");
-            exit(1) ;
-        }
 
-        cuda_err = cudaBindTexture(0, tex_HT, d_hash_table, channelDesc, HTSize*sizeof(int));
-        if ( cudaSuccess != cuda_err ){
-            printf("cudaBindTexture on tex_HT error\n");
-            exit(1) ;
-        }
 
+
+
+
+
+
+//
+//        cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc (sizeof(int)*8, 0, 0, 0, cudaChannelFormatKindSigned);
+//        cuda_err = cudaBindTexture(0, tex_r, d_r, channelDesc, MaxRow*sizeof(int));
+//        if ( cudaSuccess != cuda_err ){
+//            printf("cudaBindTexture on tex_r error\n");
+//            exit(1) ;
+//        }
+//
+//        cuda_err = cudaBindTexture(0, tex_HT, d_hash_table, channelDesc, HTSize*sizeof(int));
+//        if ( cudaSuccess != cuda_err ){
+//            printf("cudaBindTexture on tex_HT error\n");
+//            exit(1) ;
+//        }
 
         // count bit of width (ex: if width is 256, width_bit is 8)
         int width_bit;
@@ -372,12 +431,14 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         if (state_num < 32768 && width_bit == 8) {
             TraceTable_kernel_fast <<< dimGrid, dimBlock >>> (
                     d_match_result, (int *)d_input_string, input_size, HTSize,
-                            final_state_num, MaxRow, num_blocks, boundary, d_s0Table, max_pat_len);
+                            final_state_num, MaxRow, num_blocks, boundary, d_s0Table, d_r, d_hash_table,
+                            d_val_table, max_pat_len);
         }
         else {
             TraceTable_kernel <<< dimGrid, dimBlock >>> (
                     d_match_result, (int *)d_input_string, input_size, HTSize,
-                            width_bit, final_state_num, MaxRow, num_blocks, boundary, d_s0Table, max_pat_len);
+                            width_bit, final_state_num, MaxRow, num_blocks, boundary, d_s0Table, d_r, d_hash_table,
+                            d_val_table, max_pat_len);
         }
 
         // check error after kernel launch
@@ -398,7 +459,19 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         cudaEventDestroy(stop);
         printf("test input size bug1 \n");
         clock_gettime( CLOCK_REALTIME, &transOutTime_begin);
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("before malloc match result memory: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
         cudaMemcpy(match_result, d_match_result, sizeof(short)*max_pat_len*input_size, cudaMemcpyDeviceToHost);
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after malloc memory8: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
         printf("test input size bug2 \n");
         // for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
         //   if(match_result[testindex] < -1) printf("Negative value %d at index %d\n", match_result[testindex], testindex);
@@ -418,15 +491,54 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 
         // release memory
         cudaFree(d_input_string);
-        cudaUnbindTexture(tex_r);
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after free memory1: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }    
+        //cudaUnbindTexture(tex_r);
         cudaFree(d_r);
-        cudaUnbindTexture(tex_HT);
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after free memory2: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }    
+        //cudaUnbindTexture(tex_HT);
         cudaFree(d_hash_table);
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after free memory3: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }    
+        cudaFree(d_val_table);//add by qiao0324
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after free memory4: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }    
         cudaFree(d_match_result);
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after free memory5: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }    
         cudaFree(d_s0Table);
+
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after free memory6: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }    
         // for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
         //   if(match_result[testindex] < -1) printf("2Negative value %d at index %d\n", match_result[testindex], testindex);
         // }
 
         return 0 ;
+
+
 }

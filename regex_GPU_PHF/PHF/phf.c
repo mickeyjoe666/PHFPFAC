@@ -2,8 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ROW_MAX        32768*2
-#define COL_MAX        4096
+//#define ROW_MAX        32768*2
+//#define COL_MAX        4096
+#define ROW_MAX        130000 //2^20 states
+#define COL_MAX        2048
+
 #define HASHTABLE_MAX  163840*6
 
 #define SHOW_PHF
@@ -17,6 +20,7 @@ struct RowStruct {    // structure for each row of Keys[][]
 
 // the arrays Keys[][], r[] and HT[] are those in the article "Perfect Hashing"
 //int Keys[ROW_MAX][COL_MAX];     // Keys[i][j]=K (i=K/w, j=K mod w) for each key K
+
 ////extern int r[ROW_MAX];          // r[R]=amount row Keys[R][] was shifted
 //extern int HT[HASHTABLE_MAX];   // the shifted rows of Keys[][] collapse into HT[]
 
@@ -55,14 +59,14 @@ struct RowStruct {    // structure for each row of Keys[][]
 *   Parameters : None
 *   Returned   : No use
 ****************************************************************************/
-void InitArrays(int** Keys, int r[], int HT[], RowStruct Row[]) {
+void InitArrays(int ** Keys, int r[], int HT[], int val[], RowStruct Row[]) {
     int row;
     
     // initialize following arrays to -1
-    //memset ( Keys, 0xFF, ROW_MAX*COL_MAX*sizeof(int) );    
+    //memset ( Keys, 0xFF, ROW_MAX*COL_MAX*sizeof(int) );
     memset ( r, 0xFF, ROW_MAX*sizeof(int) );
     memset ( HT, 0xFF, HASHTABLE_MAX*sizeof(int) );
-    //memset ( val, 0xFF, HASHTABLE_MAX*sizeof(int) );
+    memset ( val, 0xFF, HASHTABLE_MAX*sizeof(int) );
     
     for (row = 0; row < ROW_MAX; row++) {
         Row[row].RowNumber  = row;   // insert the row numbers and
@@ -144,7 +148,7 @@ void SortRows(int numRow, RowStruct Row[]) {
 *                width - The width of key table
 *   Returned   : Size of hash table
 ****************************************************************************/
-int FFDM(int **ary, int ary_size, int width, int* r, int* HT) {
+int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
     int NumKeys, MaxKey, MaxOffset, MaxRow, HTSize = 0;
     int i, ndx, rc, row, col, key, mergeVal;
     int offset, rowItemCnt;
@@ -152,16 +156,13 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT) {
     int** Keys = (int**)malloc(ROW_MAX*sizeof(int*));
     for (int Keysrow = 0; Keysrow < ROW_MAX; Keysrow++) {
         Keys[Keysrow] = (int*)malloc(COL_MAX*sizeof(int));
-    } 
+    }
     RowStruct* Row = (RowStruct*)malloc(ROW_MAX*sizeof(RowStruct));
-  
     if (width > COL_MAX) {
         printf("width may not exceed %d\n", COL_MAX);
         exit(-1);
     }
- 
-    InitArrays(Keys, r, HT, Row);
-    
+    InitArrays(Keys, r, HT, val, Row);
     // read in the user's key data
     rc = ReadKey(ary, ary_size, width, &NumKeys, &MaxKey, Keys, Row);
     if (rc != 0) {
@@ -179,7 +180,6 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT) {
     //    the items in previous rows.
     // 2. Record the shift amount in array r[].
     // 3. Insert this row into the hash table HT[].
-    
     MaxOffset = 0;
     for (ndx = 0; Row[ndx].RowItemCnt > 0; ndx++) {
         row = Row[ndx].RowNumber;      // get the next non-empty row
@@ -198,15 +198,21 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT) {
                 if (offset > MaxOffset) {
                     MaxOffset = offset;
                 }
+                printf ("the maxoffset is %d\n",MaxOffset);
                 for (i = 0; i < rowItemCnt; i++) {  // insert this row into the hash table
                     col = rowPtr[i];
                     key = row * width + col;
-                    mergeVal = 0;
-                    mergeVal |= row;
-                    mergeVal |= (ary[key/CHAR_SET][key%CHAR_SET] << 15);
-                    HT[offset+col] = mergeVal;
-                    // HT[offset+col] = row;
-                    // val[offset+col] = ary[key];
+                    //mergeVal = 0;
+                    //mergeVal |= row;
+                    //mergeVal |= (ary[key/CHAR_SET][key%CHAR_SET] << 15);
+                    //HT[offset+col] = mergeVal;
+                     HT[offset+col] = row;
+                     //printf ("the offset is %d\n",offset);
+                     //printf ("the key is %d\n",key);
+                     //printf ("the key is %d\n",key/CHAR_SET);
+                     val[offset+col] = ary[key/CHAR_SET][key%CHAR_SET];
+                     //val[offset+col] = * ary[key];
+                     //printf ("the val is %d\n",val[offset+col]);
                 }
                 break;
             }
@@ -225,8 +231,31 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT) {
             HTSize = i + 1;
         }
     }
+    printf("Table utilization : \033[92m%.3f %%\033[m\n", 100.0f*NumKeys );
+    printf("Table utilization : \033[92m%.3f %%\033[m\n", HTSize/2 );
     
 #ifdef SHOW_PHF
+//    // print the results
+//    printf("\n");
+//    printf("Number of keys    : %d\n", NumKeys );
+//    printf("Max Key           : %d\n", MaxKey );
+//    printf("width value       : %d\n", width );
+//    printf("\n");
+//    printf("Max Offset        : %d\n", MaxOffset );
+//    printf("r table size      : \033[93m%7d\033[m", MaxRow );
+//    printf("  (\033[93m%7lu\033[m Bytes)\n", MaxRow * sizeof(int) );
+//    printf("Hash table size   : \033[96m%7d\033[m", HTSize );
+//    printf("  (\033[96m%7lu\033[m Bytes)\n", (HTSize) * sizeof(int) );
+//    printf("Memory size       : \033[97m%7lu\033[m Bytes\n", (MaxRow + HTSize) * sizeof(int) );
+//    printf("Table utilization : \033[92m%.3f %%\033[m\n", 100.0f*NumKeys/HTSize );
+//    printf("(\033[4mNumber of keys\033[m / \033[4mHash table size\033[m)\n");
+//    printf("Table size ratio  : \033[95m%.3f %%\033[m\n", 100.0f*(MaxRow+HTSize)/(MaxKey+256-MaxKey%256) );
+//    printf("((\033[4mr table size\033[m + \033[4mHash table size\033[m) / \033[4m2D PFAC table size\033[m)\n");
+//    printf("\n");
+//#endif
+
+
+
     // print the results
     printf("\n");
     printf("Number of keys    : %d\n", NumKeys );
@@ -238,13 +267,20 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT) {
     printf("  (\033[93m%7lu\033[m Bytes)\n", MaxRow * sizeof(int) );
     printf("Hash table size   : \033[96m%7d\033[m", HTSize );
     printf("  (\033[96m%7lu\033[m Bytes)\n", (HTSize) * sizeof(int) );
-    printf("Memory size       : \033[97m%7lu\033[m Bytes\n", (MaxRow + HTSize) * sizeof(int) );
-    printf("Table utilization : \033[92m%.3f %%\033[m\n", 100.0f*NumKeys/HTSize );
+    printf("Val table size   : \033[96m%7d\033[m", HTSize );
+    printf("  (\033[96m%7lu\033[m Bytes)\n", (HTSize) * sizeof(int) );
+    printf("Memory size       : \033[97m%7lu\033[m KBytes\n", (MaxRow + HTSize*2) * sizeof(int));
+    printf("Memory size       : \033[97m%7lu\033[m KBytes\n", (MaxRow + HTSize*2) * sizeof(int)/1024 );
+    printf("Memory Efficiency       : \033[97m%7.2lf\033[m KBytes\n", (double)(MaxRow + HTSize*2) * sizeof(int)/NumKeys);
+
+    printf("Table utilization : \033[92m%.3f %%\033[m\n", 100.0f*NumKeys/HTSize/2 );
     printf("(\033[4mNumber of keys\033[m / \033[4mHash table size\033[m)\n");
-    printf("Table size ratio  : \033[95m%.3f %%\033[m\n", 100.0f*(MaxRow+HTSize)/(MaxKey+256-MaxKey%256) );
+    printf("Table size ratio  : \033[95m%.3f %%\033[m\n", 100.0f*(MaxRow+HTSize*2)/(MaxKey+256-MaxKey%256) );
     printf("((\033[4mr table size\033[m + \033[4mHash table size\033[m) / \033[4m2D PFAC table size\033[m)\n");
     printf("\n");
 #endif
-    
+
+
+
     return HTSize;
 }

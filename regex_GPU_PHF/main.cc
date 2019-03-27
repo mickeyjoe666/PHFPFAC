@@ -13,7 +13,8 @@ int *outputs[MAX_STATE];              // list of matched pattern for each state
 //int val[HASHTABLE_MAX];  // store next state corresponding to hash key, not used in this version
 
 int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
-                   int final_state_num, short* match_result, int HTSize, int width, int *s0Table, int max_pat_len, int r[], int HT[]);
+                   int final_state_num, short* match_result, int HTSize, int width,
+                   int *s0Table, int max_pat_len, int r[], int HT[], int val[]);
 
 /****************************************************************************
 *   Function   : main
@@ -43,9 +44,12 @@ int main(int argc, char *argv[]) {
     int** r = (int**)malloc(GPU_N*sizeof(int*));
     //the shifted rows of Keys[GPU_i][][] collapse into HT[GPU_i][]
     int** HT = (int**)malloc(GPU_N*sizeof(int*));
+    //store next state corresponding to hash key
+    int** val = (int**)malloc(GPU_N*sizeof(int*));
     for (int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
         r[GPUnum] = (int*)malloc(ROW_MAX*sizeof(int));
         HT[GPUnum] = (int*)malloc(HASHTABLE_MAX*sizeof(int));
+        val[GPUnum] = (int*)malloc(HASHTABLE_MAX*sizeof(int));
     }
     int type;
     int width; 
@@ -91,14 +95,14 @@ int main(int argc, char *argv[]) {
         fprintf(fw, "\n\n");
     }
     fclose(fw);
- 
+
 
     // create PHF hash table from PFAC table
     width = atoi(argv[3]);
     for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++){
-        HTSize[GPUnum] = FFDM(PFACs[GPUnum], state_num[GPUnum], width, r[GPUnum], HT[GPUnum]);
+        HTSize[GPUnum] = FFDM(PFACs[GPUnum], state_num[GPUnum], width, r[GPUnum], HT[GPUnum],val[GPUnum]);
     }
-    
+
     // read input data
     FILE *fpin = fopen(argv[4], "rb");
     if (fpin == NULL) {
@@ -141,7 +145,7 @@ int main(int argc, char *argv[]) {
         // exact string matching kernel
         GPU_TraceTable(input_string, input_size, state_num[GPUnum], final_state_num[GPUnum],
                    match_result[GPUnum], HTSize[GPUnum], width, PFACs[GPUnum][(final_state_num[GPUnum]+1)],
-                   max_pat_len_arr[GPUnum], r[GPUnum], HT[GPUnum]);
+                   max_pat_len_arr[GPUnum], r[GPUnum], HT[GPUnum], val[GPUnum]);
         printf("test input size bug5 \n");
         // Output results
         //char output_file_name[100] = "GPU_match_result";
@@ -168,6 +172,18 @@ int main(int argc, char *argv[]) {
         //    }
         //}
         //fclose(fpout1);
+        cudaError_t cuda_err;
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("after the call of kernel function once: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
+
+
+
+
+
+
     }
 
     //TODO: synchronise threads that did the matching once the above TODO is done
