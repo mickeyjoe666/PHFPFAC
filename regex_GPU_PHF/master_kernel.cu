@@ -24,7 +24,7 @@
     state = s_s0Table[inputChar]; \
     yang123 = 0; \
     if (state >= 0) { \
-        if (state <= num_final_state) { \
+        if (state < num_final_state) { \
             match[yang123] = state; \
             yang123++; \
         } \
@@ -40,14 +40,14 @@
                 state = -1; \
             else { \
                   int hashValue = d_hash_table[index]; \
-                  if ((hashValue) == row) \
-                    state = d_val_table[index] ; \
+                  if ((hashValue& 0x7FFF) == row) \
+                    state = d_val_table[index] & 0x1FFFF ; \
                   else \
                     state = -1; \
             } \
             \
             if (state == -1) break; \
-            if (state <= num_final_state) { \
+            if (state < num_final_state) { \
               match[yang123] = state; \
               yang123++; \
             } \
@@ -151,7 +151,7 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
     state = s_s0Table[inputChar]; \
     yang123 = 0; \
     if (state >= 0) { \
-        if (state <= num_final_state) { \
+        if (state < num_final_state) { \
             match[yang123] = state; \
             yang123++; \
         } \
@@ -171,7 +171,7 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
             } \
             \
             if (state == -1) break; \
-            if (state <=num_final_state) { \
+            if (state < num_final_state) { \
             match[yang123] = state; \
             yang123++; \
             } \
@@ -462,6 +462,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
+            printf ("cudSucess is %d\n, cuda_erris %d\n ", cudaSuccess,cuda_err);
             printf("before malloc match result memory: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
