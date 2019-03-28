@@ -5,7 +5,7 @@
 //#define ROW_MAX        32768*2
 //#define COL_MAX        4096
 #define ROW_MAX        130000 //2^20 states
-#define COL_MAX        2048
+#define COL_MAX       4096 
 
 #define HASHTABLE_MAX  163840*6
 
@@ -198,18 +198,18 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
                 if (offset > MaxOffset) {
                     MaxOffset = offset;
                 }
-                printf ("the maxoffset is %d\n",MaxOffset);
-                printf ("the rowItemCnt is %d\n",rowItemCnt);
+                //printf ("the maxoffset is %d\n",MaxOffset);
+                //printf ("the rowItemCnt is %d\n",rowItemCnt);
                 for (i = 0; i < rowItemCnt; i++) {  // insert this row into the hash table
                     col = rowPtr[i];
                     key = row * width + col;
-                    printf ("the row is %d\n",row);
+                    //printf ("the row is %d\n",row);
                     //mergeVal = 0;
                     //mergeVal |= row;
                     //mergeVal |= (ary[key/CHAR_SET][key%CHAR_SET] << 15);
                     //HT[offset+col] = mergeVal;
                      HT[offset+col] = row;
-                    printf ("the HT[i] is %d\n",HT[i]);
+                     //printf ("the HT[i] is %d\n",HT[i]);
                      //printf ("the offset is %d\n",offset);
                      //printf ("the key is %d\n",key);
                      //printf ("the key is %d\n",key/CHAR_SET);

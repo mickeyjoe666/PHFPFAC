@@ -1,2 +1,2 @@
-gphf*
-*.txt
+/regex_GPU_PHF/gphf
+/regex_GPU_PHF/*.txt
