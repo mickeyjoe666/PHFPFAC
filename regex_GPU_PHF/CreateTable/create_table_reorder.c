@@ -5,7 +5,7 @@
 
 //pattern_s all_pattern[MAX_STATE];
 //int pattern_num;
-int GPU_N ;
+int GPU_N =2;
 
 /****************************************************************************
 *   Function   : comp_pat
@@ -194,7 +194,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     else
         read_pattern_ext(patternfilename, &pattern_num, all_pattern);
  
-    cudaGetDeviceCount(&GPU_N);
+    //cudaGetDeviceCount(&GPU_N);
 
     //the number of patterns to feed to GPUs 0 to GPU_N-2
     int k = pattern_num/GPU_N;
@@ -212,7 +212,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
         }
     }
 
-    //Array of array of patterns. Each divided_pattenrs[i] corresponds to the patterns of each GPU_i
+//    //Array of array of patterns. Each divided_pattenrs[i] corresponds to the patterns of each GPU_i
     pattern_s** divided_patterns = divide_patterns(all_pattern, pattern_num);
 
     for (i = 0;i< GPU_N-1; i++){
@@ -222,8 +222,10 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
          final_state_num[i] = k;
     }
 
+
     patternIdMaps[i] = (int*)malloc(l*sizeof(int));
     patternsToPFAC(divided_patterns[i], l, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
+    if (max_pat_length_arr[i] > *max_pat_len) *max_pat_len = max_pat_length_arr[i];
     final_state_num[i] = l;
    
 }
