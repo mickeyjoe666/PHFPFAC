@@ -51,6 +51,9 @@
               match[yang123] = state; \
               yang123++; \
             } \
+            if (yang123 > max_pat_len ){ \
+              printf("???") ; \
+            } \
             pos += 1; \
         } \
     }
