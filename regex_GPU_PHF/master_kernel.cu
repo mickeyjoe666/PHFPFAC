@@ -21,42 +21,51 @@
 #define  SUBSEG_MATCH( j, match ) \
     pos = tid + j * BLOCK_SIZE ; \
     inputChar = s_in_c[pos]; \
-    state = s_s0Table[inputChar]; \
-    yang123 = 0; \
-    if (state >= 0) { \
-        if (state < num_final_state) { \
-            match[yang123] = state; \
-            yang123++; \
-        } \
-        pos += 1; \
-        while (1) { \
-            if (pos >= bdy) break; \
-            inputChar = s_in_c[pos]; \
-            int key = (state << 8) + inputChar; \
-            int row = key >> width_bit; \
-            int col = key & ((1<<width_bit)-1); \
-            int index = d_r[row] + col; \
-            if (index >= HTSize) \
-                state = -1; \
-            else { \
-                  int hashValue = d_hash_table[index]; \
-                  if ((hashValue& 0x7FFF) == row) \
-                    state = d_val_table[index] & 0x1FFFF ; \
-                  else \
-                    state = -1; \
-            } \
-            \
-            if (state == -1) break; \
+    if (pos < input_size) {\
+        if (tid ==15 ) printf("inputChar is %c in thread%d at begin\n", inputChar, tid); \
+        if (tid ==15 ) printf("pos is %d in thread%d at begin\n", pos, tid); \
+        state = s_s0Table[inputChar]; \
+        yang123 = 0; \
+        if (state >= 0) { \
             if (state < num_final_state) { \
-              match[yang123] = state; \
-              yang123++; \
-            } \
-            if (yang123 > max_pat_len ){ \
-              printf("???") ; \
+                match[yang123] = state; \
+                yang123++; \
             } \
             pos += 1; \
-        } \
-    }
+            while (1) { \
+                if (pos >= bdy) break; \
+                if (tid ==15 ) printf("pos is %d in thread%d at first\n", pos, tid); \
+                inputChar = s_in_c[pos]; \
+                if (tid ==15 ) printf("inputChar is %c in thread%d at first\n", inputChar, tid); \
+                int key = (state << 8) + inputChar; \
+                int row = key >> width_bit; \
+                int col = key & ((1<<width_bit)-1); \
+                int index = d_r[row] + col; \
+                if (index >= HTSize) \
+                    state = -1; \
+                else { \
+                      int hashValue = d_hash_table[index]; \
+                      if ((hashValue& 0x7FFF) == row) \
+                        state = d_val_table[index] & 0x1FFFF ; \
+                      else \
+                        state = -1; \
+                } \
+                \
+                if (state == -1) break; \
+                if (tid ==15 ) printf("state is %d in thread%d at first\n", state, tid); \
+                if (state < num_final_state) { \
+                  match[yang123] = state; \
+                  yang123++; \
+                } \
+                if (yang123 > max_pat_len ){ \
+                    printf("yang123 is bigger than maxlength in thread%d \n",tid); \
+                    } \
+                pos += 1; \
+            } \
+            if (tid ==15 ) printf("pos is %d in thread%d at last \n", pos, tid); \
+        }\
+    } 
+    
 
 /****************************************************************************
 *   Function   : TraceTable_kernel
@@ -349,6 +358,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             printf("after malloc memory4: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
+        printf("(int=%d:short=%d)\n",sizeof(int),sizeof(short int));
         cudaMalloc((void **) &d_match_result, max_pat_len*input_size*sizeof(short));
 
         cuda_err = cudaGetLastError() ;
@@ -431,6 +441,8 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         cudaEventCreate(&stop);
         cudaEventRecord(start, 0);
 
+        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402
+
         if (state_num < 32768 && width_bit == 8) {
             TraceTable_kernel_fast <<< dimGrid, dimBlock >>> (
                     d_match_result, (int *)d_input_string, input_size, HTSize,
@@ -457,10 +469,8 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         cudaEventElapsedTime(&time, start, stop);
         printf("2. MASTER: The elapsed time is %f ms\n", time);
         printf("   MASTER: The throughput is %f Gbps\n",(float)(input_size)/(time*1000000)*8 );
-        printf("test input size bug0 \n");
         cudaEventDestroy(start);
         cudaEventDestroy(stop);
-        printf("test input size bug1 \n");
         clock_gettime( CLOCK_REALTIME, &transOutTime_begin);
 
         cuda_err = cudaGetLastError() ;
@@ -476,15 +486,12 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             printf("after malloc memory8: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
-        printf("test input size bug2 \n");
         // for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
         //   if(match_result[testindex] < -1) printf("Negative value %d at index %d\n", match_result[testindex], testindex);
         // }
-        printf("test input size bug3 \n");
         clock_gettime( CLOCK_REALTIME, &transOutTime_end);
         transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
         transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
-        printf("test input size bug4 \n");
         printf("3. D2H transfer time: %lf ms\n", transOutTime);
         printf("   D2H throughput: %lf GBps\n", (input_size*sizeof(short))/(transOutTime*1000000));
 
