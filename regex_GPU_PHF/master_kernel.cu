@@ -22,8 +22,6 @@
     pos = tid + j * BLOCK_SIZE ; \
     inputChar = s_in_c[pos]; \
     if (pos < input_size) {\
-        if (tid ==15 ) printf("inputChar is %c in thread%d at begin\n", inputChar, tid); \
-        if (tid ==15 ) printf("pos is %d in thread%d at begin\n", pos, tid); \
         state = s_s0Table[inputChar]; \
         yang123 = 0; \
         if (state >= 0) { \
@@ -34,35 +32,31 @@
             pos += 1; \
             while (1) { \
                 if (pos >= bdy) break; \
-                if (tid ==15 ) printf("pos is %d in thread%d at first\n", pos, tid); \
                 inputChar = s_in_c[pos]; \
-                if (tid ==15 ) printf("inputChar is %c in thread%d at first\n", inputChar, tid); \
                 int key = (state << 8) + inputChar; \
                 int row = key >> width_bit; \
                 int col = key & ((1<<width_bit)-1); \
                 int index = d_r[row] + col; \
-                if (index >= HTSize) \
+                if(index < 0 || index >= HTSize) \
                     state = -1; \
                 else { \
                       int hashValue = d_hash_table[index]; \
-                      if ((hashValue& 0x7FFF) == row) \
-                        state = d_val_table[index] & 0x1FFFF ; \
+                      if ((hashValue) == row) \
+                        state = d_val_table[index] ; \
                       else \
                         state = -1; \
                 } \
                 \
                 if (state == -1) break; \
-                if (tid ==15 ) printf("state is %d in thread%d at first\n", state, tid); \
                 if (state < num_final_state) { \
                   match[yang123] = state; \
                   yang123++; \
                 } \
                 if (yang123 > max_pat_len ){ \
-                    printf("yang123 is bigger than maxlength in thread%d \n",tid); \
-                    } \
+                  printf("yang123 is bigger than maxlength in thread%d \n",tid); \
+                } \
                 pos += 1; \
             } \
-            if (tid ==15 ) printf("pos is %d in thread%d at last \n", pos, tid); \
         }\
     } 
     
