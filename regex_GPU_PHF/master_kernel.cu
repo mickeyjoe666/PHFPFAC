@@ -285,6 +285,8 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         double transInTime;
         struct timespec transOutTime_begin, transOutTime_end;
         double transOutTime;
+        size_t free_mem;
+        size_t total_mem;
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -353,7 +355,28 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             exit(1) ;
         }
         printf("(int=%d:short=%d)\n",sizeof(int),sizeof(short int));
-        cudaMalloc((void **) &d_match_result, max_pat_len*input_size*sizeof(short));
+
+        cudaError_t mem_info1 = cudaMemGetInfo( &free_mem, &total_mem);
+        if ( cudaSuccess != mem_info1 ) {
+            printf("memory get info fails\n");
+            exit(1) ;
+        }
+
+        printf("total mem = %lf MB, free mem before malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
+        printf("Trying to allocate %lu bits of memory\n", max_pat_len*input_size*sizeof(short));
+
+
+
+        cudaMalloc((void **) &d_match_result, (size_t)max_pat_len*(size_t)input_size*sizeof(short));
+
+
+
+        cudaError_t mem_info2 = cudaMemGetInfo( &free_mem, &total_mem);
+        if ( cudaSuccess != mem_info2 ) {
+            printf("memory get info fails\n");
+            exit(1) ;
+        }
+        printf("total mem = %lf MB, free mem after malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
