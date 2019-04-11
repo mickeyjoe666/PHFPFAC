@@ -136,11 +136,15 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
 
     // save match result from registers to global memory
     start = gbid * PAGE_SIZE_C + tid;
+    unsigned int d_match_size = (unsigned int)max_pat_len * (unsigned int)input_size;
+    unsigned int thread_offset = (unsigned int)start * (unsigned int)max_pat_len; 
     #pragma unroll
     for (int i = 0; i < 8; i++) {
+        unsigned int i_offset = (unsigned int)i * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE;
         for (int j = 0; j < max_pat_len; j++) {
-            if(start*max_pat_len + i*max_pat_len*BLOCK_SIZE + j < max_pat_len * input_size) {
-              d_match_result[start*max_pat_len + i*max_pat_len*BLOCK_SIZE + j] = match[i][j];
+            if(thread_offset + i_offset + (unsigned int)j < 0) printf("Overflow??\n");
+            if(thread_offset + i_offset + (unsigned int)j < d_match_size) {
+              d_match_result[thread_offset + i_offset + (unsigned int)j] = match[i][j];
             }
             if(match[i][j]<-1) printf("???\n");
         }
@@ -361,14 +365,13 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             printf("memory get info fails\n");
             exit(1) ;
         }
-
         printf("total mem = %lf MB, free mem before malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
-        printf("Trying to allocate %lu bits of memory\n", max_pat_len*input_size*sizeof(short));
-
+        printf("Trying to allocate %lu bits of memory\n", (size_t)max_pat_len*(size_t)input_size*sizeof(short));
+        printf("Test %u\n", (unsigned int)max_pat_len*(unsigned int)input_size);
+        printf("max_pat_len: %d, input_size: %d, sizeof(short): %lu", max_pat_len, input_size, sizeof(short));
 
 
         cudaMalloc((void **) &d_match_result, (size_t)max_pat_len*(size_t)input_size*sizeof(short));
-
 
 
         cudaError_t mem_info2 = cudaMemGetInfo( &free_mem, &total_mem);
@@ -459,6 +462,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         cudaEventRecord(start, 0);
 
         cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402
+        //cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*2048);//add by qiao 20190402
 
         if (state_num < 32768 && width_bit == 8) {
             TraceTable_kernel_fast <<< dimGrid, dimBlock >>> (
@@ -492,7 +496,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
-            printf ("cudSucess is %d\n, cuda_erris %d\n ", cudaSuccess,cuda_err);
+            printf ("cudSucess is %d\n, cuda_err is %d\n ", cudaSuccess,cuda_err);
             printf("before malloc match result memory: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
@@ -519,6 +523,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 
         // release memory
         cudaFree(d_input_string);
+        printf("cudaFree(d_input_string); done\n");
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -527,6 +532,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         }    
         //cudaUnbindTexture(tex_r);
         cudaFree(d_r);
+        printf("cudaFree(d_r); done\n");
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -535,6 +541,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         }    
         //cudaUnbindTexture(tex_HT);
         cudaFree(d_hash_table);
+        printf("cudaFree(d_hash_table); done\n");
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -542,6 +549,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             exit(1) ;
         }    
         cudaFree(d_val_table);//add by qiao0324
+        printf("cudaFree(d_val_table); done\n");
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -549,6 +557,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             exit(1) ;
         }    
         cudaFree(d_match_result);
+        printf("cudaFree(d_match_result); done\n");
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -556,6 +565,8 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             exit(1) ;
         }    
         cudaFree(d_s0Table);
+        printf("cudaFree(d_s0Table); done\n");
+
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
