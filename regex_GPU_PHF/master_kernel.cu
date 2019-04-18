@@ -76,7 +76,7 @@
 *                d_s0Table - The row of initial state in PFAC table
 *   Returned   : No use
 ****************************************************************************/
-__global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_size,
+__global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int input_size,
                                   int HTSize, int width_bit, int num_final_state, int MaxRow,
                                   int num_blocks, int boundary, int *d_s0Table, int* d_r, int* d_hash_table,
                                   int* d_val_table, int max_pat_len) {
@@ -87,9 +87,9 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
     int state;
     int yang123;
     int inputChar;
-    short *match[(PAGE_SIZE_C / BLOCK_SIZE)] = {0};   // registers to save match result
+    unsigned int *match[(PAGE_SIZE_C / BLOCK_SIZE)] = {0};   // registers to save match result
     for (int i = 0; i < (PAGE_SIZE_C / BLOCK_SIZE); i++) {
-        match[i] = (short*)malloc(sizeof(short) * max_pat_len);
+        match[i] = (unsigned int*)malloc(sizeof(unsigned int) * max_pat_len);
         for(int j = 0; j < max_pat_len; j++) {
             match[i][j] = - 1;
         }
@@ -146,7 +146,7 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
             if(thread_offset + i_offset + (unsigned int)j < d_match_size) {
               d_match_result[thread_offset + i_offset + (unsigned int)j] = match[i][j];
             }
-            if(match[i][j]<-1) printf("???\n");
+            if(int(match[i][j])<-1) printf("???\n");
         }
         free(match[i]);
     }
@@ -206,7 +206,7 @@ __global__ void TraceTable_kernel(short *d_match_result, int *d_in_i, int input_
 *                d_s0Table - The row of initial state in PFAC table
 *   Returned   : No use
 ****************************************************************************/
-__global__ void TraceTable_kernel_fast(short *d_match_result, int *d_in_i,
+__global__ void TraceTable_kernel_fast(unsigned int *d_match_result, int *d_in_i,
                                        int input_size, int HTSize, int num_final_state, int MaxRow,
                                        int num_blocks, int boundary, int *d_s0Table,
                                        int* d_r, int* d_hash_table, int* d_val_table, int max_pat_len) {
@@ -217,7 +217,7 @@ __global__ void TraceTable_kernel_fast(short *d_match_result, int *d_in_i,
     int state;
     int yang123;
     int inputChar;
-    short match[(PAGE_SIZE_C / BLOCK_SIZE)][100] = {0};   // registers to save match result
+    unsigned int match[(PAGE_SIZE_C / BLOCK_SIZE)][100] = {0};   // registers to save match result
     unsigned char *s_in_c;   // shared memory in char unit
     unsigned char *d_in_c;   // device (global) memory in char unit
     int bdy;
@@ -281,7 +281,7 @@ __global__ void TraceTable_kernel_fast(short *d_match_result, int *d_in_i,
 *   Returned   : No use
 ****************************************************************************/
 int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
-                   int final_state_num, short* match_result, int HTSize, int width,
+                   int final_state_num, unsigned int* match_result, int HTSize, int width,
                    int *s0Table, int max_pat_len, int r[], int HT[], int val[])
 {
         cudaError_t cuda_err;
@@ -323,7 +323,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         unsigned char *d_input_string;
         int *d_r;
         int *d_hash_table;
-        short *d_match_result;
+        unsigned int *d_match_result;
         int *d_val_table;//add by qiao 0324
         int *d_s0Table;
         int MaxRow;
@@ -358,7 +358,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             printf("after malloc memory4: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
-        printf("(int=%d:short=%d)\n",sizeof(int),sizeof(short int));
+        printf("(int=%d:unsigned int=%d)\n",sizeof(int),sizeof(unsigned int));
 
         cudaError_t mem_info1 = cudaMemGetInfo( &free_mem, &total_mem);
         if ( cudaSuccess != mem_info1 ) {
@@ -368,10 +368,10 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         printf("total mem = %lf MB, free mem before malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
         printf("Trying to allocate %lu bits of memory\n", (size_t)max_pat_len*(size_t)input_size*sizeof(short));
         printf("Test %u\n", (unsigned int)max_pat_len*(unsigned int)input_size);
-        printf("max_pat_len: %d, input_size: %d, sizeof(short): %lu", max_pat_len, input_size, sizeof(short));
+        printf("max_pat_len: %d, input_size: %d, sizeof(unsigned int): %lu", max_pat_len, input_size, sizeof(unsigned int));
 
 
-        cudaMalloc((void **) &d_match_result, (size_t)max_pat_len*(size_t)input_size*sizeof(short));
+        cudaMalloc((void **) &d_match_result, (size_t)max_pat_len*(size_t)input_size*sizeof(unsigned int));
 
 
         cudaError_t mem_info2 = cudaMemGetInfo( &free_mem, &total_mem);
@@ -500,7 +500,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             printf("before malloc match result memory: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
-        cudaMemcpy(match_result, d_match_result, sizeof(short)*max_pat_len*input_size, cudaMemcpyDeviceToHost);
+        cudaMemcpy(match_result, d_match_result, sizeof(unsigned int)*max_pat_len*input_size, cudaMemcpyDeviceToHost);
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -514,7 +514,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
         transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
         printf("3. D2H transfer time: %lf ms\n", transOutTime);
-        printf("   D2H throughput: %lf GBps\n", (input_size*sizeof(short))/(transOutTime*1000000));
+        printf("   D2H throughput: %lf GBps\n", (input_size*sizeof(unsigned int))/(transOutTime*1000000));
 
         printf("4. Total elapsed time: %lf ms\n", transInTime+transOutTime+time);
         printf("   Total throughput: %lf Gbps\n", (double)input_size/((transInTime+transOutTime+time)*1000000)*8);
