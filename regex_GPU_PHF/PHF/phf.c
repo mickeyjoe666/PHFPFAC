@@ -4,7 +4,7 @@
 
 //#define ROW_MAX        32768*2
 //#define COL_MAX        4096
-#define ROW_MAX        1300000 //2^20 states
+#define ROW_MAX        130000 //2^20 states
 #define COL_MAX       4096 
 
 #define HASHTABLE_MAX  163840*6

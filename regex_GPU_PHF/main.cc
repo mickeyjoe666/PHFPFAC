@@ -5,16 +5,15 @@
 #include "CreateTable/create_PFAC_table_reorder.c"
 #include "PHF/phf.c"
 
-// extern unsigned int MAX_STATE;
-// int num_output[MAX_STATE];            // num of matched pattern for each state
-// int *outputs[MAX_STATE];              // list of matched pattern for each state
+int num_output[MAX_STATE];            // num of matched pattern for each state
+int *outputs[MAX_STATE];              // list of matched pattern for each state
 
 //int r[ROW_MAX];          // r[R]=amount row Keys[R][] was shifted
 //int HT[HASHTABLE_MAX];   // the shifted rows of Keys[][] collapse into HT[]
 //int val[HASHTABLE_MAX];  // store next state corresponding to hash key, not used in this version
 
 int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
-                   int final_state_num, unsigned int* match_result, int HTSize, int width,
+                   int final_state_num, short* match_result, int HTSize, int width,
                    int *s0Table, int max_pat_len, int r[], int HT[], int val[]);
 
 /****************************************************************************
@@ -56,11 +55,11 @@ int main(int argc, char *argv[]) {
     int width; 
     unsigned char *input_string;
     int input_size;
-    unsigned int** match_result = (unsigned int**)malloc(GPU_N*sizeof(unsigned int*));
+    short** match_result = (short**)malloc(GPU_N*sizeof(short*));
     int i;
     int j;
     int x;
-    printf("this is so weird. \n");
+
     // check command line arguments
     if (argc != 5) {
         fprintf(stderr, "usage: %s <pattern file name> <type> <PHF width> <input file name>\n", argv[0]);
@@ -71,6 +70,8 @@ int main(int argc, char *argv[]) {
     // read pattern file and create PFAC table
     type = atoi(argv[2]);
     create_PFAC_table_reorder(argv[1], state_num, final_state_num, type, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
+
+
     char* fname = "PFAC_table.txt";
     FILE *fw = fopen(fname, "w");
     if (fw == NULL) {
@@ -134,8 +135,8 @@ int main(int argc, char *argv[]) {
         }
 
         // allocate host memory: match result
-        //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
-        status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum], cudaHostAllocPortable);
+        //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(short)*input_size*max_pat_len_arr[GPUnum]);
+        status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(short)*input_size*max_pat_len_arr[GPUnum], cudaHostAllocPortable);
         if (cudaSuccess != status) {
             fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
             exit(1);

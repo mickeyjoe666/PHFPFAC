@@ -200,6 +200,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     int k = pattern_num/GPU_N;
     //the number of patterns to ffed to GPU GPU_N-1. (GPU_N-2)*k + l = pattern_num.
     int l = k + pattern_num%GPU_N;
+
     //Allocate and initialise memory for the PFACs
     for (x =0 ; x < GPU_N ; x++){
         PFACs[x] = (int**)malloc(MAX_STATE*sizeof(int*));
@@ -211,11 +212,8 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
         }
     }
 
-
-    //Array of array of patterns. Each divided_pattenrs[i] corresponds to the patterns of each GPU_i
+//    //Array of array of patterns. Each divided_pattenrs[i] corresponds to the patterns of each GPU_i
     pattern_s** divided_patterns = divide_patterns(all_pattern, pattern_num);
-
-    printf("k = %d, l= %d\n", k,l);
 
     for (i = 0;i< GPU_N-1; i++){
          patternIdMaps[i] = (int*)malloc(k*sizeof(int));
@@ -225,14 +223,11 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     }
 
 
-    
-
-
     patternIdMaps[i] = (int*)malloc(l*sizeof(int));
     patternsToPFAC(divided_patterns[i], l, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
     if (max_pat_length_arr[i] > *max_pat_len) *max_pat_len = max_pat_length_arr[i];
     final_state_num[i] = l;
-    
+   
 }
 
 pattern_s** divide_patterns(pattern_s all_pattern[], int pattern_num) {
@@ -282,7 +277,8 @@ void patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max_
         if (cur_pat.pattern_len > *max_pat_length ) {
            *max_pat_length = cur_pat.pattern_len;
         } 
-        //create transition according to pattern
+
+        // create transition according to pattern
         for (j = 0; j < cur_pat.pattern_len-1; j++) {
             ch = (unsigned char)cur_pat.pat[j];
             if (PFAC[state][ch] == -1) {
@@ -294,6 +290,7 @@ void patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max_
                 state = PFAC[state][ch];
             }
         }
+
         // the ending char will create a transition to corresponding final state
         ch = (unsigned char)cur_pat.pat[j];
         PFAC[state][ch] = i;
