@@ -13,7 +13,7 @@ int *outputs[MAX_STATE];              // list of matched pattern for each state
 //int val[HASHTABLE_MAX];  // store next state corresponding to hash key, not used in this version
 
 int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
-                   int final_state_num, short* match_result, int HTSize, int width,
+                   int final_state_num, unsigned int* match_result, int HTSize, int width,
                    int *s0Table, int max_pat_len, int r[], int HT[], int val[]);
 
 /****************************************************************************
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
     int width; 
     unsigned char *input_string;
     int input_size;
-    short** match_result = (short**)malloc(GPU_N*sizeof(short*));
+    unsigned int** match_result = (unsigned int**)malloc(GPU_N*sizeof(unsigned int*));
     int i;
     int j;
     int x;
@@ -69,6 +69,7 @@ int main(int argc, char *argv[]) {
    
     // read pattern file and create PFAC table
     type = atoi(argv[2]);
+    printf("still ok before entry create_PFAC_table_reorder\n");
     create_PFAC_table_reorder(argv[1], state_num, final_state_num, type, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
 
 
@@ -135,8 +136,8 @@ int main(int argc, char *argv[]) {
         }
 
         // allocate host memory: match result
-        //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(short)*input_size*max_pat_len_arr[GPUnum]);
-        status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(short)*input_size*max_pat_len_arr[GPUnum], cudaHostAllocPortable);
+        //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
+        status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum], cudaHostAllocPortable);
         if (cudaSuccess != status) {
             fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
             exit(1);

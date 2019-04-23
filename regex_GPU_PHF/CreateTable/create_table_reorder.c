@@ -5,7 +5,11 @@
 
 //pattern_s all_pattern[MAX_STATE];
 //int pattern_num;
-int GPU_N =2;
+int GPU_N ;
+int INITIAL_SIZE = 100000;
+int INITIAL_PFAC_SIZE = 400000;
+pattern_s* all_pattern_new;
+int** PFAC_new;
 
 /****************************************************************************
 *   Function   : comp_pat
@@ -60,7 +64,6 @@ pattern_s* read_pattern(char *patternfilename, int* pattern_num, pattern_s all_p
         perror("Open input file failed.");
         exit(1);
     }
-    
     while (1) {
         // read a pattern
         str_len = 0;
@@ -79,8 +82,21 @@ pattern_s* read_pattern(char *patternfilename, int* pattern_num, pattern_s all_p
                 break;
             }
         }
-        
-        // put the read pattern to all_pattern[]
+
+        //printf("pattern_num is %d\n",*pattern_num);
+        //printf("INITIAL_SIZE is %d\n",INITIAL_SIZE);
+        if (*pattern_num >= INITIAL_SIZE){
+            printf("have reach a limmit\n");
+            all_pattern_new = (pattern_s*)realloc (all_pattern , INITIAL_SIZE*2*sizeof(pattern_s));
+
+            if(all_pattern_new != NULL) {
+                printf("copy to new space\n");
+                all_pattern = all_pattern_new;
+                INITIAL_SIZE = INITIAL_SIZE*2;
+            }
+
+        }
+
         all_pattern[*pattern_num].pattern_id = *pattern_num;
         all_pattern[*pattern_num].pattern_len = str_len;
         all_pattern[*pattern_num].pat = (char *)malloc( str_len*sizeof(char) );
@@ -100,6 +116,9 @@ pattern_s* read_pattern(char *patternfilename, int* pattern_num, pattern_s all_p
     qsort(&all_pattern[1], *pattern_num, sizeof(pattern_s), comp_pat); 
     
     fclose(fpin);
+
+
+    return all_pattern;
 }
 
 /****************************************************************************
@@ -186,15 +205,18 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     int state_count;    // counter for creating new state
     int initial_state, pattern_num;
     //pattern_s all_pattern[MAX_STATE];
-    pattern_s* all_pattern = (pattern_s*)malloc(MAX_STATE*sizeof(pattern_s));    
+    pattern_s* all_pattern = (pattern_s*)malloc(INITIAL_SIZE*sizeof(pattern_s));    
 
     // select normal mode or extension mode
     if (ext == 0)
-        read_pattern(patternfilename, &pattern_num, all_pattern);
+        all_pattern = read_pattern(patternfilename, &pattern_num, all_pattern);
     else
         read_pattern_ext(patternfilename, &pattern_num, all_pattern);
- 
-    //cudaGetDeviceCount(&GPU_N);
+
+    printf("finshed read pattern\n");
+    
+    printf("pattern_num is %d\n",pattern_num);
+    cudaGetDeviceCount(&GPU_N);
 
     //the number of patterns to feed to GPUs 0 to GPU_N-2
     int k = pattern_num/GPU_N;
@@ -202,31 +224,37 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     int l = k + pattern_num%GPU_N;
 
     //Allocate and initialise memory for the PFACs
-    for (x =0 ; x < GPU_N ; x++){
-        PFACs[x] = (int**)malloc(MAX_STATE*sizeof(int*));
-        for (i = 0; i < MAX_STATE; i++) {
-            PFACs[x][i] =(int*) malloc(CHAR_SET*sizeof(int));
-            for (j = 0; j < CHAR_SET; j++) {
-                (PFACs[x])[i][j] = -1;
-            }
-        }
-    }
+    // for (x =0 ; x < GPU_N ; x++){
+    //     PFACs[x] = (int**)malloc(INITIAL_PFAC_SIZE*sizeof(int*));
+    //     for (i = 0; i < INITIAL_PFAC_SIZE; i++) {
+    //         PFACs[x][i] =(int*) malloc(CHAR_SET*sizeof(int));
+    //         for (j = 0; j < CHAR_SET; j++) {
+    //             (PFACs[x])[i][j] = -1;
+    //         }
+    //     }
+    // }
 
+    for (x =0 ; x < GPU_N ; x++){
+        PFACs[x] = (int**)malloc(INITIAL_PFAC_SIZE*sizeof(int*));
+    }
+   
 //    //Array of array of patterns. Each divided_pattenrs[i] corresponds to the patterns of each GPU_i
     pattern_s** divided_patterns = divide_patterns(all_pattern, pattern_num);
 
     for (i = 0;i< GPU_N-1; i++){
          patternIdMaps[i] = (int*)malloc(k*sizeof(int));
-         patternsToPFAC(divided_patterns[i], k, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
+         PFACs[i] = patternsToPFAC(divided_patterns[i], k, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
          if (max_pat_length_arr[i] > *max_pat_len) *max_pat_len = max_pat_length_arr[i];
          final_state_num[i] = k;
     }
 
+    printf("finsh write PFAC for the first %d GPU\n",GPU_N-1);
 
     patternIdMaps[i] = (int*)malloc(l*sizeof(int));
-    patternsToPFAC(divided_patterns[i], l, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
+    PFACs[i] = patternsToPFAC(divided_patterns[i], l, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
     if (max_pat_length_arr[i] > *max_pat_len) *max_pat_len = max_pat_length_arr[i];
     final_state_num[i] = l;
+    printf("finsh write PFAC for the last  GPU\n");
    
 }
 
@@ -254,14 +282,15 @@ pattern_s** divide_patterns(pattern_s all_pattern[], int pattern_num) {
 }
 
 
-void patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max_pat_length, int *state_num, int patternIdMap[]){
+int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max_pat_length, int *state_num, int patternIdMap[]){
 
     int state_count;
     int state;
     int initial_state;
     int ch;
     pattern_s cur_pat;
-    int j;
+    int j,x;
+    
 
     // final states are state[1] ~ state[n], n is number of pattern
     initial_state = pattern_num + 1;
@@ -269,22 +298,57 @@ void patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max_
     state = initial_state;
     // create new state from (initial_state+1)
     state_count = initial_state + 1;
+    int PFAC_size = INITIAL_PFAC_SIZE;
+
+    printf("start initialize PFAC table\n");
+    for ( x = 0; x < PFAC_size; x++) {
+        PFAC[x] = (int*)malloc(CHAR_SET*sizeof(int));
+        // printf("x is %d\n",x);
+        memset(PFAC[x], 0xFF, CHAR_SET * sizeof(int));
+    }
+
+    printf("finshed initialize PFAC table\n");
+    // printf("x is %d\n",x);
 
     for (int i = 0; i < pattern_num; i++) {
         // load current pattern
         cur_pat = patterns[i];
         patternIdMap[i] = cur_pat.pattern_id;
         if (cur_pat.pattern_len > *max_pat_length ) {
-           *max_pat_length = cur_pat.pattern_len;
+            *max_pat_length = cur_pat.pattern_len;
         } 
-
+        // printf("state is %d\n",state);
+        // printf("x is %d\n",x);
         // create transition according to pattern
-        for (j = 0; j < cur_pat.pattern_len-1; j++) {
+
+
+        for ( j = 0; j < cur_pat.pattern_len-1; j++) {
             ch = (unsigned char)cur_pat.pat[j];
+            // printf("state is %d\n",state);
+            // printf("x is %d\n",x);
+            // printf("PFAC vaule is %d now\n",PFAC[state][ch]);
             if (PFAC[state][ch] == -1) {
+
                 PFAC[state][ch] = state_count;
                 state = state_count;
                 state_count += 1;
+                // printf("state_count is %dnow\n",state_count);
+                // printf("PFAC_size is %dnow\n",PFAC_size);
+                if(state_count >= PFAC_size){
+                    printf("have reach a limit\n");
+                    PFAC_new = (int**)realloc (PFAC , (size_t)PFAC_size*(size_t)2*sizeof(int*));
+
+                    if(PFAC_new != NULL) {
+                        printf("Reallocated PFAC successfully\n");
+                        PFAC = PFAC_new;
+                        for (int x = PFAC_size; x < PFAC_size*2-1; x++) {
+                            PFAC[x] = (int*)malloc(CHAR_SET*sizeof(int));
+                            memset(PFAC[x], 0xFF, CHAR_SET * sizeof(int));
+                        }
+                        PFAC_size = PFAC_size*2;
+                    }
+                }
+
             }
             else {
                 state = PFAC[state][ch];
@@ -296,12 +360,15 @@ void patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max_
         PFAC[state][ch] = i;
         // initialize state to load next pattern
         state = initial_state;
-        
+
         // check state overflow
         if (state_count > MAX_STATE) {
-            fprintf(stderr, "State number overflow, %d\n", state_count);
+            fprintf(stderr, "Could not built the AC automaton, State number overflow. Reduce the number of patterns in the dictionary or use more GPUs %d\n", state_count);
             exit(1);
         }
     }
+
     *state_num = state_count;
+    
+    return PFAC;
 }
