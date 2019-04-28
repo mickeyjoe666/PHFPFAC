@@ -7,7 +7,7 @@
 //int pattern_num;
 int GPU_N ;
 int INITIAL_SIZE = 100000;
-int INITIAL_PFAC_SIZE = 400000;
+int INITIAL_PFAC_SIZE = 4000000;
 pattern_s* all_pattern_new;
 int** PFAC_new;
 
