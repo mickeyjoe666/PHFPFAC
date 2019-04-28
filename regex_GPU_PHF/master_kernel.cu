@@ -280,10 +280,41 @@ __global__ void TraceTable_kernel_fast(unsigned int *d_match_result, int *d_in_i
 *                s0Table - The row of initial state in PFAC table
 *   Returned   : No use
 ****************************************************************************/
-int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
-                   int final_state_num, unsigned int* match_result, int HTSize, int width,
-                   int *s0Table, int max_pat_len, int r[], int HT[], int val[])
+int GPU_TraceTable(void *threadarg)
 {
+        
+        struct thread_data *my_data;
+        my_data = (struct thread_data *) threadarg; 
+
+        GPUnum = my_data->thread_id;
+        input_string = my_data->input_string;
+        input_size = my_data->input_size;
+        state_num = my_data->state_num;
+        final_state_num = my_data->final_state_num;
+        match_result = my_data->match_result;
+        HTSize = my_data->HTSize;
+        width = my_data->width;
+        s0Table = my_data->s0Table;
+        max_pat_len = my_data->max_pat_len;
+        r[] = my_data->r[];
+        HT[] = my_data->HT[];
+        val[] = my_data->val[];
+
+
+    if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
+        fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
+        exit(1);
+    }
+
+    // allocate host memory: match result
+    //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
+    status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum], cudaHostAllocPortable);
+    if (cudaSuccess != status) {
+        fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
+        exit(1);
+    }
+
+
         cudaError_t cuda_err;
         struct timespec transInTime_begin, transInTime_end;
         double transInTime;

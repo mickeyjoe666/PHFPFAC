@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 #include "CreateTable/create_PFAC_table_reorder.c"
 #include "PHF/phf.c"
+#include<pthread.h>
 
 int num_output[MAX_STATE];            // num of matched pattern for each state
 int *outputs[MAX_STATE];              // list of matched pattern for each state
@@ -12,9 +13,27 @@ int *outputs[MAX_STATE];              // list of matched pattern for each state
 //int HT[HASHTABLE_MAX];   // the shifted rows of Keys[][] collapse into HT[]
 //int val[HASHTABLE_MAX];  // store next state corresponding to hash key, not used in this version
 
-int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
-                   int final_state_num, unsigned int* match_result, int HTSize, int width,
-                   int *s0Table, int max_pat_len, int r[], int HT[], int val[]);
+
+struct thread_data{ 
+    int GPUnum;
+    unsigned char *input_string;
+    int input_size;
+    int state_num;
+    int final_state_num;
+    unsigned int* match_result;
+    int HTSize;
+    int width;
+    int *s0Table;
+    int max_pat_len;
+    int r[];
+    int HT[];
+    int val[];
+}; 
+
+
+struct thread_data thread_data_array[GPUnum];
+
+int GPU_TraceTable(void *threadarg);
 
 /****************************************************************************
 *   Function   : main
@@ -128,25 +147,38 @@ int main(int argc, char *argv[]) {
     fread(input_string, sizeof(char), input_size, fpin);
     fclose(fpin);
 
+
     //TODO: parallelise this. Need to make sure each GPU has its own output variables
     for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++){
-        if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
-            fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
-            exit(1);
-        }
 
-        // allocate host memory: match result
-        //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
-        status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum], cudaHostAllocPortable);
-        if (cudaSuccess != status) {
-            fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
-            exit(1);
-        }
-
+        //Create thread from here
+        int rc;
         // exact string matching kernel
-        GPU_TraceTable(input_string, input_size, state_num[GPUnum], final_state_num[GPUnum],
-                   match_result[GPUnum], HTSize[GPUnum], width, PFACs[GPUnum][(final_state_num[GPUnum]+1)],
-                   max_pat_len_arr[GPUnum], r[GPUnum], HT[GPUnum], val[GPUnum]);
+        pthread_t [GPUnum];
+
+        thread_data_array[GPUnum].GPUnum = GPUnum;
+        thread_data_array[GPUnum].input_string = input_string;
+        thread_data_array[GPUnum].input_size = input_size;
+        thread_data_array[GPUnum].state_num = state_num[GPUnum];
+        thread_data_array[GPUnum].final_state_num = final_state_num[GPUnum];
+        thread_data_array[GPUnum].match_result = match_result[GPUnum];
+        thread_data_array[GPUnum].HTSize = HTSize[GPUnum];
+        thread_data_array[GPUnum].width = width;
+        thread_data_array[GPUnum].s0Table = PFACs[GPUnum][(final_state_num[GPUnum]+1)];
+        thread_data_array[GPUnum].max_pat_len =  max_pat_len_arr[GPUnum];
+        thread_data_array[GPUnum].r = r[GPUnum];
+        thread_data_array[GPUnum].HT = HT[GPUnum];
+        thread_data_array[GPUnum].val = val[GPUnum];
+
+
+        rc = int pthread_create(&GPUnum, NULL, GPU_TraceTable, (void *) &thread_data_array[GPUnum]);
+        if (rc){
+            printf("ERROR; return code from pthread_create() is %d\n", rc);
+            exit(-1);
+
+        }
+
+        pthread_exit(NULL);
         // Output results
         //char output_file_name[100] = "GPU_match_result";
         //char number[10];
