@@ -14,26 +14,24 @@ int *outputs[MAX_STATE];              // list of matched pattern for each state
 //int val[HASHTABLE_MAX];  // store next state corresponding to hash key, not used in this version
 
 
-struct thread_data{ 
+struct thread_data{
     int GPUnum;
     unsigned char *input_string;
     int input_size;
     int state_num;
     int final_state_num;
-    unsigned int* match_result;
+    unsigned int** match_result;
     int HTSize;
     int width;
     int *s0Table;
     int max_pat_len;
-    int r[];
-    int HT[];
-    int val[];
-}; 
+    int* r;
+    int* HT;
+    int* val;
+};
 
 
-struct thread_data thread_data_array[GPUnum];
-
-int GPU_TraceTable(void *threadarg);
+void *GPU_TraceTable(void *threadarg);
 
 /****************************************************************************
 *   Function   : main
@@ -43,8 +41,8 @@ int GPU_TraceTable(void *threadarg);
 ****************************************************************************/
 int main(int argc, char *argv[]) {
     //number of GPUs on the machine
-    int GPU_N = 2 ;
-    //cudaGetDeviceCount(&GPU_N);
+    //int GPU_N = 2 ;
+    cudaGetDeviceCount(&GPU_N);
     //Array contaning the number of states in the automaton of each GPU
     int* state_num = (int*)malloc(GPU_N*sizeof(int));
     //Array contaning the number of final states in the automaton of each GPU
@@ -79,6 +77,8 @@ int main(int argc, char *argv[]) {
     int j;
     int x;
 
+
+
     // check command line arguments
     if (argc != 5) {
         fprintf(stderr, "usage: %s <pattern file name> <type> <PHF width> <input file name>\n", argv[0]);
@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
    
     // read pattern file and create PFAC table
     type = atoi(argv[2]);
-    printf("still ok before entry create_PFAC_table_reorder\n");
+//    printf("still ok before entry create_PFAC_table_reorder\n");
     create_PFAC_table_reorder(argv[1], state_num, final_state_num, type, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
 
 
@@ -133,11 +133,12 @@ int main(int argc, char *argv[]) {
     fseek(fpin, 0, SEEK_END);
     input_size = ftell(fpin)-1;
     rewind(fpin);
+    printf("input_size here = %d char\n", input_size );
 
     // allocate host memory: input data
     cudaError_t status;
     //status = cudaMallocHost((void **) &input_string, sizeof(char)*input_size);
-    status = cudaHostAlloc((void **) &input_string, sizeof(char)*input_size, cudaHostAllocPortable);
+    status = cudaHostAlloc((void **) &input_string, sizeof(unsigned char)*input_size, cudaHostAllocPortable);
     if (cudaSuccess != status) {
         fprintf(stderr, "cudaMallocHost input_string error: %s\n", cudaGetErrorString(status));
         exit(1);
@@ -149,19 +150,33 @@ int main(int argc, char *argv[]) {
 
 
     //TODO: parallelise this. Need to make sure each GPU has its own output variables
-    for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++){
+
+    pthread_t threads[GPU_N];
+    pthread_attr_t attr;
+    int rc;
+    void *status1;
+    struct thread_data thread_data_array[GPU_N];
+
+    /* Initialize and set thread detached attribute */
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+
+
+
+    for (int GPUnum = 0; GPUnum < GPU_N; GPUnum++){
+
+
 
         //Create thread from here
-        int rc;
         // exact string matching kernel
-        pthread_t [GPUnum];
+
 
         thread_data_array[GPUnum].GPUnum = GPUnum;
         thread_data_array[GPUnum].input_string = input_string;
         thread_data_array[GPUnum].input_size = input_size;
         thread_data_array[GPUnum].state_num = state_num[GPUnum];
         thread_data_array[GPUnum].final_state_num = final_state_num[GPUnum];
-        thread_data_array[GPUnum].match_result = match_result[GPUnum];
+        thread_data_array[GPUnum].match_result = match_result;
         thread_data_array[GPUnum].HTSize = HTSize[GPUnum];
         thread_data_array[GPUnum].width = width;
         thread_data_array[GPUnum].s0Table = PFACs[GPUnum][(final_state_num[GPUnum]+1)];
@@ -170,70 +185,61 @@ int main(int argc, char *argv[]) {
         thread_data_array[GPUnum].HT = HT[GPUnum];
         thread_data_array[GPUnum].val = val[GPUnum];
 
-
-        rc = int pthread_create(&GPUnum, NULL, GPU_TraceTable, (void *) &thread_data_array[GPUnum]);
+        printf("Creating thread %d\n", GPUnum);
+        rc = pthread_create(&threads[GPUnum], &attr, GPU_TraceTable, (void *) &thread_data_array[GPUnum]);
         if (rc){
             printf("ERROR; return code from pthread_create() is %d\n", rc);
             exit(-1);
-
         }
 
-        pthread_exit(NULL);
-        // Output results
-        //char output_file_name[100] = "GPU_match_result";
-        //char number[10];
-        //sprintf(number, "%d" , GPUnum);
-        //strcat(output_file_name, number);
-        //strcat(output_file_name, ".txt");
 
-        //FILE *fpout1 = fopen(output_file_name, "w");
-        //if (fpout1 == NULL) {
-        //    perror("Open output file failed.\n");
-        //    exit(1);
-        //}
-
-        // Output match result to file
-        //if (type == 0){
-        //    for (i = 0; i < input_size; i++) {
-        //        for (j = 0; j < max_pat_len_arr[GPUnum]; j++){
-        //            if(match_result[GPUnum][i*max_pat_len_arr[GPUnum]+j] != -1) {
-        //                int matched_id = patternIdMaps[GPUnum][match_result[GPUnum][i*max_pat_len_arr[GPUnum]+j]];
-        //                fprintf(fpout1, "At position %4d, match pattern %d\n", i, matched_id);
-        //            }
-        //        }
-        //    }
-        //}
-        //fclose(fpout1);
-        cudaError_t cuda_err;
-        cuda_err = cudaGetLastError() ;
-        if ( cudaSuccess != cuda_err ) {
-            printf("after the call of kernel function once: error = %s\n", cudaGetErrorString (cuda_err));
-            exit(1) ;
-        }
     }
 
+    /* Free attribute and wait for the other threads */
+    pthread_attr_destroy(&attr);
+
+    for (int GPUnum = 0; GPUnum < GPU_N; GPUnum++){
+        rc = pthread_join(threads[GPUnum], &status1);
+        if (rc) {
+            printf("ERROR; return code from pthread_join() is %d\n", rc);
+            exit(-1);
+        }
+        printf("Completed join with thread %d status1= %ld\n",GPUnum, (long)status1);
+    }
+
+
     //TODO: synchronise threads that did the matching once the above TODO is done
+
     cudaFreeHost(input_string);
     printf("cudaFreeHost(input_string); done\n");
-
     int* match_result_aggreg = (int*)malloc(sizeof(int)*(size_t)input_size*(size_t)max_pat_len);
     memset(match_result_aggreg, 0xFF, sizeof(int)*(size_t)input_size*(size_t)max_pat_len);
     for (int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
         for (i = 0; i < input_size; i++) {
             unsigned int k = (unsigned int)i * (unsigned int)max_pat_len;
             while(match_result_aggreg[k] != -1) k++;
+//            printf("i = %d, GPUnum = %d\n", i, GPUnum);
             for (j = 0; j < max_pat_len_arr[GPUnum]; j++) {
                 if(match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j] != -1) {
                     int matched_id = patternIdMaps[GPUnum][match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j]];
                     match_result_aggreg[k++] = matched_id;
+//                    printf("j = %d, GPUnum = %d\n", j, GPUnum);
                     if(matched_id < -1) printf("negative matched id: %d, GPUnum: %d i: %d j: %d\n", matched_id, GPUnum, i, j);
                 }
                 else
                     break;
             }
         }
+//        printf("I guess the problem is here?\n ");
+        if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
+            fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
+            exit(1);
+        }
+//        printf("this not make sense\n ");
         cudaFreeHost(match_result[GPUnum]);
     }
+
+//    printf("this not make sense2\n ");
 
     char* output_file_name = "GPU_match_result.txt";
     FILE *fpout1 = fopen(output_file_name, "w");
@@ -253,4 +259,6 @@ int main(int argc, char *argv[]) {
     }
     fclose(fpout1);
     return 0;
+
+//    pthread_exit(NULL);
 }

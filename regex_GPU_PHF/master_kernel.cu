@@ -3,7 +3,23 @@
 #include <string.h>
 #include <time.h>
 #include <cuda_runtime.h>
+#include<pthread.h>
 
+struct thread_data{
+    int GPUnum;
+    unsigned char *input_string;
+    int input_size;
+    int state_num;
+    int final_state_num;
+    unsigned int** match_result;
+    int HTSize;
+    int width;
+    int *s0Table;
+    int max_pat_len;
+    int* r;
+    int* HT;
+    int* val;
+};
 
 #define BLOCK_SIZE   512
 #define PAGE_SIZE_I  1024   // size of a segment handled by a block (how many integers)
@@ -280,27 +296,30 @@ __global__ void TraceTable_kernel_fast(unsigned int *d_match_result, int *d_in_i
 *                s0Table - The row of initial state in PFAC table
 *   Returned   : No use
 ****************************************************************************/
-int GPU_TraceTable(void *threadarg)
+void* GPU_TraceTable(void *threadarg)
 {
-        
-        struct thread_data *my_data;
+    struct thread_data *my_data;
         my_data = (struct thread_data *) threadarg; 
 
-        GPUnum = my_data->thread_id;
-        input_string = my_data->input_string;
-        input_size = my_data->input_size;
-        state_num = my_data->state_num;
-        final_state_num = my_data->final_state_num;
-        match_result = my_data->match_result;
-        HTSize = my_data->HTSize;
-        width = my_data->width;
-        s0Table = my_data->s0Table;
-        max_pat_len = my_data->max_pat_len;
-        r[] = my_data->r[];
-        HT[] = my_data->HT[];
-        val[] = my_data->val[];
+        int GPUnum = my_data->GPUnum;
+        unsigned char* input_string = my_data->input_string;
+        int input_size = my_data->input_size;
+        int state_num = my_data->state_num;
+        int final_state_num = my_data->final_state_num;
+        unsigned int**  match_result = my_data->match_result;
+        int HTSize = my_data->HTSize;
+        int width = my_data->width;
+        int* s0Table = my_data->s0Table;
+        int max_pat_len = my_data->max_pat_len;
+        int* r = my_data->r;
+        int* HT = my_data->HT;
+        int* val = my_data->val;
+        printf("input_size here3 = %d char\n", my_data->input_size );
+        printf("GPUnum here3 = %d \n", my_data->GPUnum );
 
 
+
+    cudaError_t status;
     if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
         fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
         exit(1);
@@ -308,14 +327,15 @@ int GPU_TraceTable(void *threadarg)
 
     // allocate host memory: match result
     //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
-    status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum], cudaHostAllocPortable);
+    status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(int)*input_size*max_pat_len, cudaHostAllocPortable);
     if (cudaSuccess != status) {
         fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
         exit(1);
     }
 
 
-        cudaError_t cuda_err;
+
+    cudaError_t cuda_err;
         struct timespec transInTime_begin, transInTime_end;
         double transInTime;
         struct timespec transOutTime_begin, transOutTime_end;
@@ -389,7 +409,7 @@ int GPU_TraceTable(void *threadarg)
             printf("after malloc memory4: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
-        printf("(int=%d:unsigned int=%d)\n",sizeof(int),sizeof(unsigned int));
+//        printf("(int=%d:unsigned int=%d)\n",sizeof(int),sizeof(unsigned int));
 
         cudaError_t mem_info1 = cudaMemGetInfo( &free_mem, &total_mem);
         if ( cudaSuccess != mem_info1 ) {
@@ -398,7 +418,7 @@ int GPU_TraceTable(void *threadarg)
         }
         printf("total mem = %lf MB, free mem before malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
         printf("Trying to allocate %lu bits of memory\n", (size_t)max_pat_len*(size_t)input_size*sizeof(short));
-        printf("Test %u\n", (unsigned int)max_pat_len*(unsigned int)input_size);
+//        printf("Test %u\n", (unsigned int)max_pat_len*(unsigned int)input_size);
         printf("max_pat_len: %d, input_size: %d, sizeof(unsigned int): %lu", max_pat_len, input_size, sizeof(unsigned int));
 
 
@@ -531,7 +551,7 @@ int GPU_TraceTable(void *threadarg)
             printf("before malloc match result memory: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
-        cudaMemcpy(match_result, d_match_result, sizeof(unsigned int)*max_pat_len*input_size, cudaMemcpyDeviceToHost);
+        cudaMemcpy(match_result[GPUnum], d_match_result, sizeof(unsigned int)*max_pat_len*input_size, cudaMemcpyDeviceToHost);
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -608,7 +628,6 @@ int GPU_TraceTable(void *threadarg)
         //   if(match_result[testindex] < -1) printf("2Negative value %d at index %d\n", match_result[testindex], testindex);
         // }
 
-        return 0 ;
-
+        pthread_exit((void *) 0);
 
 }

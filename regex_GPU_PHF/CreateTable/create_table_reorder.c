@@ -215,7 +215,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
 
     printf("finshed read pattern\n");
     
-    printf("pattern_num is %d\n",pattern_num);
+//    printf("pattern_num is %d\n",pattern_num);
     cudaGetDeviceCount(&GPU_N);
 
     //the number of patterns to feed to GPUs 0 to GPU_N-2
@@ -248,13 +248,13 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
          final_state_num[i] = k;
     }
 
-    printf("finsh write PFAC for the first %d GPU\n",GPU_N-1);
+//    printf("finsh write PFAC for the first %d GPU\n",GPU_N-1);
 
     patternIdMaps[i] = (int*)malloc(l*sizeof(int));
     PFACs[i] = patternsToPFAC(divided_patterns[i], l, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
     if (max_pat_length_arr[i] > *max_pat_len) *max_pat_len = max_pat_length_arr[i];
     final_state_num[i] = l;
-    printf("finsh write PFAC for the last  GPU\n");
+//    printf("finsh write PFAC for the last  GPU\n");
    
 }
 

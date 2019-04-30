@@ -18,6 +18,9 @@ struct RowStruct {    // structure for each row of Keys[][]
     int *RowItemIdx;  // the column index of all items in this row
 };
 
+
+
+
 // the arrays Keys[][], r[] and HT[] are those in the article "Perfect Hashing"
 //int Keys[ROW_MAX][COL_MAX];     // Keys[i][j]=K (i=K/w, j=K mod w) for each key K
 
