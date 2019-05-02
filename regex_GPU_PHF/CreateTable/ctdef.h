@@ -6,7 +6,7 @@
 #include <string.h>
 #include <ctype.h>
 
-const unsigned int MAX_STATE = 10000000;
+const unsigned int MAX_STATE = INT_MAX;
 //#define MAX_STATE  131072  // max number of state in 17 bits
 //why max_state use this number?
 #define CHAR_SET   256     // ASCII character set

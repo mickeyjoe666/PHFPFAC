@@ -6,12 +6,6 @@
 #include "PHF/phf.c"
 #include<pthread.h>
 
-int num_output[MAX_STATE];            // num of matched pattern for each state
-int *outputs[MAX_STATE];              // list of matched pattern for each state
-
-//int r[ROW_MAX];          // r[R]=amount row Keys[R][] was shifted
-//int HT[HASHTABLE_MAX];   // the shifted rows of Keys[][] collapse into HT[]
-//int val[HASHTABLE_MAX];  // store next state corresponding to hash key, not used in this version
 
 
 struct thread_data{
@@ -88,33 +82,33 @@ int main(int argc, char *argv[]) {
    
     // read pattern file and create PFAC table
     type = atoi(argv[2]);
-//    printf("still ok before entry create_PFAC_table_reorder\n");
+    //printf("still ok before entry create_PFAC_table_reorder\n");
     create_PFAC_table_reorder(argv[1], state_num, final_state_num, type, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
 
 
-    char* fname = "PFAC_table.txt";
-    FILE *fw = fopen(fname, "w");
-    if (fw == NULL) {
-        perror("Open output file failed.\n");
-        exit(1);
-    }
+//    char* fname = "PFAC_table.txt";
+//    FILE *fw = fopen(fname, "w");
+//    if (fw == NULL) {
+//        perror("Open output file failed.\n");
+//        exit(1);
+//    }
     for(int GPUnum = 0; GPUnum<GPU_N; GPUnum++){
         printf("state num on GPU %d : %d\n", GPUnum, state_num[GPUnum]);
         printf("final state num on GPU %d : %d\n", GPUnum, final_state_num[GPUnum]);
         printf("max pattern length on GPU %d : %d\n", GPUnum, max_pat_len_arr[GPUnum]);
 
         // output PFAC table
-        fprintf(fw, "PFAC for GPU %d\n", GPUnum);
-        for (i = 0; i < state_num[GPUnum]; i++) {
-            for (j = 0; j < CHAR_SET; j++) {
-                if (PFACs[GPUnum][i][j] != -1) {
-                    fprintf(fw, "state=%2d  '%c'(%02X) ->  %2d\n", i, j, j, PFACs[GPUnum][i][j]);
-                }
-            }
-        }
-        fprintf(fw, "\n\n");
+//        fprintf(fw, "PFAC for GPU %d\n", GPUnum);
+//        for (i = 0; i < state_num[GPUnum]; i++) {
+//            for (j = 0; j < CHAR_SET; j++) {
+//                if (PFACs[GPUnum][i][j] != -1) {
+//                    fprintf(fw, "state=%2d  '%c'(%02X) ->  %2d\n", i, j, j, PFACs[GPUnum][i][j]);
+//                }
+//            }
+//        }
+//        fprintf(fw, "\n\n");
     }
-    fclose(fw);
+//    fclose(fw);
 
 
     // create PHF hash table from PFAC table
@@ -137,7 +131,6 @@ int main(int argc, char *argv[]) {
 
     // allocate host memory: input data
     cudaError_t status;
-    //status = cudaMallocHost((void **) &input_string, sizeof(char)*input_size);
     status = cudaHostAlloc((void **) &input_string, sizeof(unsigned char)*input_size, cudaHostAllocPortable);
     if (cudaSuccess != status) {
         fprintf(stderr, "cudaMallocHost input_string error: %s\n", cudaGetErrorString(status));
@@ -218,28 +211,23 @@ int main(int argc, char *argv[]) {
         for (i = 0; i < input_size; i++) {
             unsigned int k = (unsigned int)i * (unsigned int)max_pat_len;
             while(match_result_aggreg[k] != -1) k++;
-//            printf("i = %d, GPUnum = %d\n", i, GPUnum);
             for (j = 0; j < max_pat_len_arr[GPUnum]; j++) {
                 if(match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j] != -1) {
                     int matched_id = patternIdMaps[GPUnum][match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j]];
                     match_result_aggreg[k++] = matched_id;
-//                    printf("j = %d, GPUnum = %d\n", j, GPUnum);
                     if(matched_id < -1) printf("negative matched id: %d, GPUnum: %d i: %d j: %d\n", matched_id, GPUnum, i, j);
                 }
                 else
                     break;
             }
         }
-//        printf("I guess the problem is here?\n ");
         if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
             fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
             exit(1);
         }
-//        printf("this not make sense\n ");
         cudaFreeHost(match_result[GPUnum]);
     }
 
-//    printf("this not make sense2\n ");
 
     char* output_file_name = "GPU_match_result.txt";
     FILE *fpout1 = fopen(output_file_name, "w");

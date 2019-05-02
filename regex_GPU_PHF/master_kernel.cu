@@ -417,7 +417,7 @@ void* GPU_TraceTable(void *threadarg)
             exit(1) ;
         }
         printf("total mem = %lf MB, free mem before malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
-        printf("Trying to allocate %lu bits of memory\n", (size_t)max_pat_len*(size_t)input_size*sizeof(short));
+        printf("Trying to allocate %lu bytes of memory\n", (size_t)max_pat_len*(size_t)input_size*sizeof(short));
 //        printf("Test %u\n", (unsigned int)max_pat_len*(unsigned int)input_size);
         printf("max_pat_len: %d, input_size: %d, sizeof(unsigned int): %lu", max_pat_len, input_size, sizeof(unsigned int));
 

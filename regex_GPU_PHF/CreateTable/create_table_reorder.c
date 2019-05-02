@@ -290,7 +290,7 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
     int ch;
     pattern_s cur_pat;
     int j,x;
-    
+
 
     // final states are state[1] ~ state[n], n is number of pattern
     initial_state = pattern_num + 1;
@@ -299,6 +299,18 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
     // create new state from (initial_state+1)
     state_count = initial_state + 1;
     int PFAC_size = INITIAL_PFAC_SIZE;
+
+    if (state_count > INITIAL_PFAC_SIZE) {
+        PFAC_size = state_count;
+        PFAC_new = (int**)realloc (PFAC , (size_t)PFAC_size*(size_t)2*sizeof(int*));
+        if (PFAC_new != NULL) {
+            PFAC = PFAC_new;
+        } else {
+            printf("Could not reallocate PFAC \n");
+            exit(1);
+        }
+
+    }
 
     printf("start initialize PFAC table\n");
     for ( x = 0; x < PFAC_size; x++) {
