@@ -37,30 +37,44 @@ int main(int argc, char *argv[]) {
     //number of GPUs on the machine
     //int GPU_N = 2 ;
     cudaGetDeviceCount(&GPU_N);
+    printf("have %d GPU can be used same time\n",GPU_N);
     //Array contaning the number of states in the automaton of each GPU
     int* state_num = (int*)malloc(GPU_N*sizeof(int));
+    if(state_num == NULL) {printf("state_num malloc fail\n"); return(1);}
     //Array contaning the number of final states in the automaton of each GPU
     int* final_state_num = (int*)malloc(GPU_N*sizeof(int));
+    if(final_state_num == NULL) {printf("final_state_num malloc fail\n"); return(1);}
     //Array contaning maximum pattern length in the automaton of each GPU
-    int* max_pat_len_arr = (int*)malloc(GPU_N*sizeof(int));
+    int* max_pat_len_arr = (int*)calloc(GPU_N, sizeof(int));
+    if(max_pat_len_arr == NULL) {printf("max_pat_len fail\n"); return(1);}
     //Maximum pattern length over all patterns
     int max_pat_len = 0;
     //Array of the automatons of each GPU
     int*** PFACs = (int***)malloc(GPU_N*sizeof(int**));
+    if(PFACs == NULL) {printf("PFACs fail\n"); return(1);}
     //Array of maps from sinal state number to pattern id for each GPU
     int** patternIdMaps = (int**)malloc(GPU_N*sizeof(int*));
+    if(patternIdMaps == NULL) {printf("patternIdMaps malloc fail\n"); return(1);}
     //Array contaning the size of the hash table of each GPU
     int* HTSize = (int*)malloc(GPU_N*sizeof(int));
+    if(HTSize == NULL) {printf("HTSize malloc fail\n"); return(1);}
     //r[GPU_i][R]=amount row Keys[GPU_i][R][] was shifted
     int** r = (int**)malloc(GPU_N*sizeof(int*));
+    if(r == NULL) {printf("r fail\n"); return(1);}
     //the shifted rows of Keys[GPU_i][][] collapse into HT[GPU_i][]
     int** HT = (int**)malloc(GPU_N*sizeof(int*));
+    if(HT == NULL) {printf("HT malloc fail\n"); return(1);}
     //store next state corresponding to hash key
     int** val = (int**)malloc(GPU_N*sizeof(int*));
+    if(val == NULL) {printf("val malloc fail\n"); return(1);}
     for (int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
-        r[GPUnum] = (int*)malloc(ROW_MAX*sizeof(int));
-        HT[GPUnum] = (int*)malloc(HASHTABLE_MAX*sizeof(int));
-        val[GPUnum] = (int*)malloc(HASHTABLE_MAX*sizeof(int));
+        r[GPUnum] = (int*)malloc((size_t)ROW_MAX*sizeof(int));
+	if(r[GPUnum] == NULL) { printf("Failed to malloc r[GPUNum]\n"); return(1);}
+        HT[GPUnum] = (int*)malloc((size_t)HASHTABLE_MAX*sizeof(int));
+	if(HT[GPUnum] == NULL) { printf("Failed to malloc HT[GPUnum]\n"); return(1);}
+        val[GPUnum] = (int*)malloc((size_t)HASHTABLE_MAX*sizeof(int));
+	if(val[GPUnum] == NULL) { printf("Failed to malloc val[GPUnum]\n"); return(1);}
+	if(r[GPUnum] == NULL || HT[GPUnum] == NULL || val[GPUnum] == NULL) { printf("Problem here\n"); return(1);}
     }
     int type;
     int width; 
@@ -208,6 +222,7 @@ int main(int argc, char *argv[]) {
     int* match_result_aggreg = (int*)malloc(sizeof(int)*(size_t)input_size*(size_t)max_pat_len);
     memset(match_result_aggreg, 0xFF, sizeof(int)*(size_t)input_size*(size_t)max_pat_len);
     for (int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
+	printf("Matches of GPU %d\n", GPUnum);
         for (i = 0; i < input_size; i++) {
             unsigned int k = (unsigned int)i * (unsigned int)max_pat_len;
             while(match_result_aggreg[k] != -1) k++;
@@ -215,6 +230,7 @@ int main(int argc, char *argv[]) {
                 if(match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j] != -1) {
                     int matched_id = patternIdMaps[GPUnum][match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j]];
                     match_result_aggreg[k++] = matched_id;
+		    printf("At position %d, match pattern %d\n", i, matched_id);
                     if(matched_id < -1) printf("negative matched id: %d, GPUnum: %d i: %d j: %d\n", matched_id, GPUnum, i, j);
                 }
                 else
@@ -226,6 +242,7 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         cudaFreeHost(match_result[GPUnum]);
+	printf("\n");
     }
 
 

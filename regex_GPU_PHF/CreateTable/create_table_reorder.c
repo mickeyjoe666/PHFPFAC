@@ -216,7 +216,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     printf("finshed read pattern\n");
     
 //    printf("pattern_num is %d\n",pattern_num);
-    cudaGetDeviceCount(&GPU_N);
+   cudaGetDeviceCount(&GPU_N);
 
     //the number of patterns to feed to GPUs 0 to GPU_N-2
     int k = pattern_num/GPU_N;
@@ -314,6 +314,7 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
     printf("start initialize PFAC table\n");
     for ( x = 0; x < PFAC_size; x++) {
         PFAC[x] = (int*)malloc(CHAR_SET*sizeof(int));
+	if(PFAC[x] == NULL) {printf("Failed to allocate memory for PFAC\n"); exit(1);}
         // printf("x is %d\n",x);
         memset(PFAC[x], 0xFF, CHAR_SET * sizeof(int));
     }
@@ -329,7 +330,6 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
             *max_pat_length = cur_pat.pattern_len;
         } 
         j = 0;
-        if (j < cur_pat.pattern_len-1) {}
         // printf("state is %d\n",state);
         // printf("x is %d\n",x);
         // create transition according to pattern
@@ -387,6 +387,7 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
     }
 
     *state_num = state_count;
+    printf("Max pat len = %d\n", *max_pat_length);
     
     return PFAC;
 }
