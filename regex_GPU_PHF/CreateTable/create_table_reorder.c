@@ -5,7 +5,7 @@
 
 //pattern_s all_pattern[MAX_STATE];
 //int pattern_num;
-int GPU_N = 2;
+int GPU_N = 1;
 int INITIAL_SIZE = 100000;
 int INITIAL_PFAC_SIZE = 4000000;
 pattern_s* all_pattern_new;
