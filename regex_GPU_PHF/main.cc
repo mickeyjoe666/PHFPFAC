@@ -35,8 +35,8 @@ void *GPU_TraceTable(void *threadarg);
 ****************************************************************************/
 int main(int argc, char *argv[]) {
     //number of GPUs on the machine
-    //int GPU_N = 2 ;
-    cudaGetDeviceCount(&GPU_N);
+    int GPU_N = 2 ;
+    //cudaGetDeviceCount(&GPU_N);
     printf("have %d GPU can be used same time\n",GPU_N);
     //Array contaning the number of states in the automaton of each GPU
     int* state_num = (int*)malloc(GPU_N*sizeof(int));

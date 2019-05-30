@@ -41,6 +41,7 @@ struct thread_data{
         state = s_s0Table[inputChar]; \
         yang123 = 0; \
         if (state >= 0) { \
+            printf("enter here\n"); \
             if (state < num_final_state) { \
                 match[yang123] = state; \
                 yang123++; \
@@ -52,24 +53,29 @@ struct thread_data{
                 int key = (state << 8) + inputChar; \
                 int row = key >> width_bit; \
                 int col = key & ((1<<width_bit)-1); \
+                printf("the row  is %d, the col is %d, d_r[row] is %d\n ",row, col ,d_r[row]); \
                 int index = d_r[row] + col; \
-                if(index < 0 || index >= HTSize) \
+                printf("the HTsize is %d\n", HTSize); \
+                if(index < 0 || index >= HTSize) { \
                     state = -1; \
+                    printf("the index %d is wrong\n ",index); } \
                 else { \
-                      int hashValue = d_hash_table[index]; \
-                      if ((hashValue) == row) \
-                        state = d_val_table[index] ; \
-                      else \
+                    int hashValue = d_hash_table[index]; \
+                    if ((hashValue) == row) { \
+                        state = d_val_table[index] ; } \
+                    else { \
                         state = -1; \
+                        printf(" match failed\n"); } \
                 } \
                 \
                 if (state == -1) break; \
                 if (state < num_final_state) { \
-                  match[yang123] = state; \
-                  yang123++; \
+                    match[yang123] = state; \
+                    yang123++; \
+                    printf("there is a match\n "); \
                 } \
                 if (yang123 > max_pat_len ){ \
-                  printf("yang123 is bigger than maxlength in thread%d \n",tid); \
+                    printf("yang123 is bigger than maxlength in thread%d \n",tid); \
                 } \
                 pos += 1; \
             } \

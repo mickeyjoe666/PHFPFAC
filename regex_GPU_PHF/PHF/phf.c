@@ -115,7 +115,9 @@ int ReadKey(int** ary, int ary_size, int width, int *KeyCount, int *MaxKey, int*
             *MaxKey = key;
         }
     }
-	
+    printf ("the width is %d\n",width);
+    printf ("the ary_size*CHAR_SET is %d\n",ary_size*CHAR_SET);
+
     return 0;
 }
 
@@ -188,6 +190,8 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
         row = Row[ndx].RowNumber;      // get the next non-empty row
         rowItemCnt = Row[ndx].RowItemCnt;
         rowPtr = Row[ndx].RowItemIdx;
+        printf("the row is %d\n ",row);
+        printf("the rowItemCnt is %d\n ",rowItemCnt);
         for (offset = -1*rowPtr[0]; offset < HASHTABLE_MAX-width; offset++) {
             for (i = 0; i < rowItemCnt; i++) {
                 col = rowPtr[i];
@@ -205,6 +209,7 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
                 //printf ("the rowItemCnt is %d\n",rowItemCnt);
                 for (i = 0; i < rowItemCnt; i++) {  // insert this row into the hash table
                     col = rowPtr[i];
+                    printf("the col is %d\n ",col);
                     key = row * width + col;
                     //printf ("the row is %d\n",row);
                     //mergeVal = 0;
@@ -213,12 +218,12 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
                     //HT[offset+col] = mergeVal;
                      HT[offset+col] = row;
                      //printf ("the HT[i] is %d\n",HT[i]);
-                     //printf ("the offset is %d\n",offset);
+                     printf ("the offset is %d\n",offset);
                      //printf ("the key is %d\n",key);
                      //printf ("the key is %d\n",key/CHAR_SET);
                      val[offset+col] = ary[key/CHAR_SET][key%CHAR_SET];
                      //val[offset+col] = * ary[key];
-                     //printf ("the val is %d\n",val[offset+col]);
+                     printf ("the val is %d\n",val[offset+col]);
                 }
                 break;
             }
@@ -233,8 +238,9 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
     
     // compute hash table size
     for (i = MaxOffset; i < MaxOffset + width; i++) {
-        if (HT[i] > 0 || val[i] > 0 ) {
+        if (HT[i] >= 0 || val[i] >= 0 ) {
             HTSize = i + 1;
+	    printf ("i is %d \n",i);
         }
     }
 
