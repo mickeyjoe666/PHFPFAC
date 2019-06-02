@@ -54,15 +54,14 @@ struct thread_data{
                 int col = key & ((1<<width_bit)-1); \
                 int index = d_r[row] + col; \
                 if(index < 0 || index >= HTSize) { \
-                    state = -1; \
+                    state = -1; }\
                 else { \
                     int hashValue = d_hash_table[index]; \
                     if ((hashValue) == row) { \
                         state = d_val_table[index] ; } \
                     else { \
-                        state = -1; \
+                        state = -1;} \
                 } \
-                \
                 if (state == -1) break; \
                 if (state < num_final_state) { \
                     match[yang123] = state; \

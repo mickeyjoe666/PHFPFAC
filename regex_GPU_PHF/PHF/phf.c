@@ -207,7 +207,6 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
                 //printf ("the rowItemCnt is %d\n",rowItemCnt);
                 for (i = 0; i < rowItemCnt; i++) {  // insert this row into the hash table
                     col = rowPtr[i];
-                    printf("the col is %d\n ",col);
                     key = row * width + col;
                     //printf ("the row is %d\n",row);
                     //mergeVal = 0;
