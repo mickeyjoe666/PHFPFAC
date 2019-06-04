@@ -24,8 +24,9 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 ****************************************************************************/
 int main(int argc, char *argv[]) {
     //number of GPUs on the machine
-    int GPU_N = 2 ;
-    //cudaGetDeviceCount(&GPU_N);
+    int streamnum = 3;
+    cudaGetDeviceCount(&GPU_S);
+    int GPU_N = streamnum * GPU_S;
     //Array contaning the number of states in the automaton of each GPU
     int* state_num = (int*)malloc(GPU_N*sizeof(int));
     //Array contaning the number of final states in the automaton of each GPU
@@ -59,6 +60,7 @@ int main(int argc, char *argv[]) {
     int i;
     int j;
     int x;
+
 
     // check command line arguments
     if (argc != 5) {
@@ -128,25 +130,42 @@ int main(int argc, char *argv[]) {
     fread(input_string, sizeof(char), input_size, fpin);
     fclose(fpin);
 
-    //TODO: parallelise this. Need to make sure each GPU has its own output variables
+
+
+
+
+
+
     for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++){
         if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
             fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
             exit(1);
         }
 
-        // allocate host memory: match result
-        //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
-        status = cudaHostAlloc((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum], cudaHostAllocPortable);
-        if (cudaSuccess != status) {
-            fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
-            exit(1);
+        //create stream for each thread
+
+        for(int i = 0; i < streamnum; i++){
+            int stream_id = GPUnum*streamnum +i+1;
+            status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
+            if (cudaSuccess != status) {
+                fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
+                exit(1);
+            }
+
+            GPU_TraceTable(input_string, input_size, state_num[stream_id], final_state_num[stream_id],
+                           match_result[stream_id], HTSize[stream_id], width, PFACs[stream_id][(final_state_num[stream_id]+1)],
+                           max_pat_len_arr[stream_id], r[stream_id], HT[stream_id], val[stream_id]);
+
+
         }
 
+
+        // allocate host memory: match result
+        //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
+
+
         // exact string matching kernel
-        GPU_TraceTable(input_string, input_size, state_num[GPUnum], final_state_num[GPUnum],
-                   match_result[GPUnum], HTSize[GPUnum], width, PFACs[GPUnum][(final_state_num[GPUnum]+1)],
-                   max_pat_len_arr[GPUnum], r[GPUnum], HT[GPUnum], val[GPUnum]);
+
         // Output results
         //char output_file_name[100] = "GPU_match_result";
         //char number[10];
@@ -172,12 +191,12 @@ int main(int argc, char *argv[]) {
         //    }
         //}
         //fclose(fpout1);
-        cudaError_t cuda_err;
-        cuda_err = cudaGetLastError() ;
-        if ( cudaSuccess != cuda_err ) {
-            printf("after the call of kernel function once: error = %s\n", cudaGetErrorString (cuda_err));
-            exit(1) ;
-        }
+//        cudaError_t cuda_err;
+//        cuda_err = cudaGetLastError() ;
+//        if ( cudaSuccess != cuda_err ) {
+//            printf("after the call of kernel function once: error = %s\n", cudaGetErrorString (cuda_err));
+//            exit(1) ;
+//        }
     }
 
     //TODO: synchronise threads that did the matching once the above TODO is done

@@ -328,6 +328,9 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         int *d_s0Table;
         int MaxRow;
 
+        //create stream
+        cudaStream_t stream;
+        cudaStreamCreate(&stream);
 
         MaxRow = (state_num*CHAR_SET) / width + 1;
         cudaMalloc((void **) &d_input_string, num_blocks*PAGE_SIZE_C+EXTRA_SIZE_PER_TB*sizeof(int) );
@@ -396,11 +399,11 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 
         clock_gettime( CLOCK_REALTIME, &transInTime_begin);
         // copy input string from host to device
-        cudaMemcpy(d_input_string, input_string, input_size, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_r, r, MaxRow*sizeof(int), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_hash_table, HT, HTSize*sizeof(int), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_s0Table, s0Table, CHAR_SET*sizeof(int), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_val_table, val, HTSize*sizeof(int), cudaMemcpyHostToDevice);//add by qiao 0324
+        cudaMemcpyAsync(d_input_string, input_string, input_size, cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(d_r, r, MaxRow*sizeof(int), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(d_hash_table, HT, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(d_s0Table, s0Table, CHAR_SET*sizeof(int), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(d_val_table, val, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);//add by qiao 0324
         clock_gettime( CLOCK_REALTIME, &transInTime_end);
         transInTime = (transInTime_end.tv_sec - transInTime_begin.tv_sec) * 1000.0;
         transInTime += (transInTime_end.tv_nsec - transInTime_begin.tv_nsec) / 1000000.0;
@@ -471,7 +474,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
                             d_val_table, max_pat_len);
         }
         else {
-            TraceTable_kernel <<< dimGrid, dimBlock >>> (
+            TraceTable_kernel <<< dimGrid, dimBlock, stream >>> (
                     d_match_result, (int *)d_input_string, input_size, HTSize,
                             width_bit, final_state_num, MaxRow, num_blocks, boundary, d_s0Table, d_r, d_hash_table,
                             d_val_table, max_pat_len);
@@ -500,7 +503,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             printf("before malloc match result memory: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
-        cudaMemcpy(match_result, d_match_result, sizeof(unsigned int)*max_pat_len*input_size, cudaMemcpyDeviceToHost);
+        cudaMemcpyAsync(match_result, d_match_result, sizeof(unsigned int)*max_pat_len*input_size, cudaMemcpyDeviceToHost, stream);
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -510,6 +513,10 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         // for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
         //   if(match_result[testindex] < -1) printf("Negative value %d at index %d\n", match_result[testindex], testindex);
         // }
+
+        cudaStreamSynchronize(stream);
+
+
         clock_gettime( CLOCK_REALTIME, &transOutTime_end);
         transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
         transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
@@ -576,6 +583,8 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         // for(int testindex = 0; testindex < sizeof(short)*max_pat_len*input_size; testindex ++) {
         //   if(match_result[testindex] < -1) printf("2Negative value %d at index %d\n", match_result[testindex], testindex);
         // }
+
+        cudaStreamDestory(stream);
 
         return 0 ;
 

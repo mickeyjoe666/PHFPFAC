@@ -5,7 +5,9 @@
 
 //pattern_s all_pattern[MAX_STATE];
 //int pattern_num;
-int GPU_N ;
+int streamnum = 3;
+//cudaGetDeviceCount(&GPU_S);
+int GPU_N = streamnum * 2;
 int INITIAL_SIZE = 100000;
 int INITIAL_PFAC_SIZE = 4000000;
 pattern_s* all_pattern_new;
