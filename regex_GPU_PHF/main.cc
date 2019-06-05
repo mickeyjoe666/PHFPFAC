@@ -5,16 +5,33 @@
 #include "CreateTable/create_PFAC_table_reorder.c"
 #include "PHF/phf.c"
 
-int num_output[MAX_STATE];            // num of matched pattern for each state
-int *outputs[MAX_STATE];              // list of matched pattern for each state
+//int num_output[MAX_STATE];            // num of matched pattern for each state
+//int *outputs[MAX_STATE];              // list of matched pattern for each state
 
 //int r[ROW_MAX];          // r[R]=amount row Keys[R][] was shifted
 //int HT[HASHTABLE_MAX];   // the shifted rows of Keys[][] collapse into HT[]
 //int val[HASHTABLE_MAX];  // store next state corresponding to hash key, not used in this version
 
-int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
-                   int final_state_num, unsigned int* match_result, int HTSize, int width,
-                   int *s0Table, int max_pat_len, int r[], int HT[], int val[],cudaStream_t stream);
+
+struct thread_data{
+    unsigned char *input_string;
+    int input_size;
+    int state_num;
+    int final_state_num;
+    unsigned int* match_result;
+    int HTSize;
+    int width;
+    int *s0Table;
+    int max_pat_len;
+    int* r;
+    int* HT;
+    int* val;
+};
+
+
+int GPU_Malloc_Memory(thread_data dataset, unsigned char *d_input_string, int *d_r, int *d_hash_table, unsigned int *d_match_result, int *d_val_table, int *d_s0Table);
+int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_input_string, int *d_r, int *d_hash_table, unsigned int *d_match_result, int *d_val_table, int *d_s0Table);
+int GPU_Free_memory(unsigned char *d_input_string, int *d_r, int *d_hash_table, unsigned int *d_match_result, int *d_val_table, int *d_s0Table);
 
 /****************************************************************************
 *   Function   : main
@@ -61,6 +78,14 @@ int main(int argc, char *argv[]) {
     int i;
     int j;
     int x;
+    struct thread_data thread_data_array[GPU_N];
+
+    unsigned char *d_input_string[streamnum];
+    int *d_r[streamnum];
+    int *d_hash_table[streamnum];
+    unsigned int *d_match_result[streamnum];
+    int *d_val_table[streamnum];//add by qiao 0324
+    int *d_s0Table[streamnum];
 
 
     // check command line arguments
@@ -137,82 +162,73 @@ int main(int argc, char *argv[]) {
 
 
 
-    for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++){
+    for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++) {
         if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
             fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
             exit(1);
         }
         cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402
-
         //create stream for each GPU
         cudaStream_t stream[streamnum];
-	for(int i = 0; i < streamnum; i++){
-	   cudaStreamCreate(&stream[i]);
-	}
 
-        for(int i = 0; i < streamnum; i++){
+        for(int i = 0; i < streamnum; i++) {
+           cudaStreamCreate(&stream[i]);
+        }
 
-
-
-
+        for(int i = 0; i < streamnum; i++) {
             int stream_id = GPUnum*streamnum +i;
+
+            thread_data_array[stream_id].input_string = input_string;
+            thread_data_array[stream_id].input_size = input_size;
+            thread_data_array[stream_id].state_num = state_num[stream_id];
+            thread_data_array[stream_id].final_state_num = final_state_num[stream_id];
+            thread_data_array[stream_id].match_result = match_result[stream_id];
+            thread_data_array[stream_id].HTSize = HTSize[stream_id];
+            thread_data_array[stream_id].width = width;
+            thread_data_array[stream_id].s0Table = PFACs[stream_id][(final_state_num[stream_id]+1)];
+            thread_data_array[stream_id].max_pat_len =  max_pat_len_arr[stream_id];
+            thread_data_array[stream_id].r = r[stream_id];
+            thread_data_array[stream_id].HT = HT[stream_id];
+            thread_data_array[stream_id].val = val[stream_id];
+
             status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
+            printf("using the %d GPU\n", GPUnum);
             if (cudaSuccess != status) {
                 fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
                 exit(1);
             }
+        }
 
+
+
+        for(int i = 0; i < streamnum; i++){
+            int stream_id = GPUnum*streamnum +i;
+            GPU_Malloc_Memory(thread_data_array[stream_id], d_input_string[i], d_r[i], d_hash_table[i], d_match_result[i], d_val_table[i], d_s0Table[i]);
+
+
+        }
+
+        for(int i = 0; i < streamnum; i++){
+            int stream_id = GPUnum*streamnum +i;
             printf("stream is %dnow \n",stream_id);
             printf("GPU_N is %dnow \n",GPU_N);
 
-            GPU_TraceTable(input_string, input_size, state_num[stream_id], final_state_num[stream_id],
-                           match_result[stream_id], HTSize[stream_id], width, PFACs[stream_id][(final_state_num[stream_id]+1)],
-                           max_pat_len_arr[stream_id], r[stream_id], HT[stream_id], val[stream_id],stream[i] );
+            GPU_TraceTable(thread_data_array[stream_id], stream[i], d_input_string[i], d_r[i], d_hash_table[i], d_match_result[i], d_val_table[i], d_s0Table[i]);
+        }
 
-            printf("finsh the match1 loop\n");
+        for(int i = 0; i < streamnum; i++){
+            cudaStreamSynchronize(stream[i]);
+        }
+
+        for(int i = 0; i < streamnum; i++){
+            GPU_Free_memory(d_input_string[i], d_r[i], d_hash_table[i], d_match_result[i], d_val_table[i], d_s0Table[i]);
         }
 
         for(int i = 0; i < streamnum; i++){
             cudaStreamDestroy(stream[i]);
         }
-        // allocate host memory: match result
-        //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
+        printf("/////////////////////////////////////////////\n");
 
-
-        // exact string matching kernel
-
-        // Output results
-        //char output_file_name[100] = "GPU_match_result";
-        //char number[10];
-        //sprintf(number, "%d" , GPUnum);
-        //strcat(output_file_name, number);
-        //strcat(output_file_name, ".txt");
-
-        //FILE *fpout1 = fopen(output_file_name, "w");
-        //if (fpout1 == NULL) {
-        //    perror("Open output file failed.\n");
-        //    exit(1);
-        //}
-
-        // Output match result to file
-        //if (type == 0){
-        //    for (i = 0; i < input_size; i++) {
-        //        for (j = 0; j < max_pat_len_arr[GPUnum]; j++){
-        //            if(match_result[GPUnum][i*max_pat_len_arr[GPUnum]+j] != -1) {
-        //                int matched_id = patternIdMaps[GPUnum][match_result[GPUnum][i*max_pat_len_arr[GPUnum]+j]];
-        //                fprintf(fpout1, "At position %4d, match pattern %d\n", i, matched_id);
-        //            }
-        //        }
-        //    }
-        //}
-        //fclose(fpout1);
-//        cudaError_t cuda_err;
-//        cuda_err = cudaGetLastError() ;
-//        if ( cudaSuccess != cuda_err ) {
-//            printf("after the call of kernel function once: error = %s\n", cudaGetErrorString (cuda_err));
-//            exit(1) ;
-//        }
-        printf("finsh the match3 loop\n");
     }
 
 
