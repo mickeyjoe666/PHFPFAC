@@ -25,6 +25,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 int main(int argc, char *argv[]) {
     //number of GPUs on the machine
     int streamnum = 3;
+    int GPU_S;
     cudaGetDeviceCount(&GPU_S);
     int GPU_N = streamnum * GPU_S;
     //Array contaning the number of states in the automaton of each GPU
@@ -75,29 +76,29 @@ int main(int argc, char *argv[]) {
     create_PFAC_table_reorder(argv[1], state_num, final_state_num, type, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
 
 
-    char* fname = "PFAC_table.txt";
-    FILE *fw = fopen(fname, "w");
-    if (fw == NULL) {
-        perror("Open output file failed.\n");
-        exit(1);
-    }
+//    char* fname = "PFAC_table.txt";
+//    FILE *fw = fopen(fname, "w");
+//    if (fw == NULL) {
+//        perror("Open output file failed.\n");
+//        exit(1);
+//    }
     for(int GPUnum = 0; GPUnum<GPU_N; GPUnum++){
         printf("state num on GPU %d : %d\n", GPUnum, state_num[GPUnum]);
         printf("final state num on GPU %d : %d\n", GPUnum, final_state_num[GPUnum]);
         printf("max pattern length on GPU %d : %d\n", GPUnum, max_pat_len_arr[GPUnum]);
 
-        // output PFAC table
-        fprintf(fw, "PFAC for GPU %d\n", GPUnum);
-        for (i = 0; i < state_num[GPUnum]; i++) {
-            for (j = 0; j < CHAR_SET; j++) {
-                if (PFACs[GPUnum][i][j] != -1) {
-                    fprintf(fw, "state=%2d  '%c'(%02X) ->  %2d\n", i, j, j, PFACs[GPUnum][i][j]);
-                }
-            }
-        }
-        fprintf(fw, "\n\n");
+//        // output PFAC table
+//        fprintf(fw, "PFAC for GPU %d\n", GPUnum);
+//        for (i = 0; i < state_num[GPUnum]; i++) {
+//            for (j = 0; j < CHAR_SET; j++) {
+//                if (PFACs[GPUnum][i][j] != -1) {
+//                    fprintf(fw, "state=%2d  '%c'(%02X) ->  %2d\n", i, j, j, PFACs[GPUnum][i][j]);
+//                }
+//            }
+//        }
+//        fprintf(fw, "\n\n");
     }
-    fclose(fw);
+//    fclose(fw);
 
 
     // create PHF hash table from PFAC table
@@ -136,21 +137,26 @@ int main(int argc, char *argv[]) {
 
 
 
-    for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++){
+    for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++){
         if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
             fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
             exit(1);
         }
+        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402
 
         //create stream for each thread
-
+//        cudaStream_t stream;
         for(int i = 0; i < streamnum; i++){
-            int stream_id = GPUnum*streamnum +i+1;
+
+            int stream_id = GPUnum*streamnum +i;
             status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
             if (cudaSuccess != status) {
                 fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
                 exit(1);
             }
+
+            printf("stream is %dnow \n",stream_id);
+            printf("GPU_N is %dnow \n",GPU_N);
 
             GPU_TraceTable(input_string, input_size, state_num[stream_id], final_state_num[stream_id],
                            match_result[stream_id], HTSize[stream_id], width, PFACs[stream_id][(final_state_num[stream_id]+1)],
@@ -158,8 +164,8 @@ int main(int argc, char *argv[]) {
 
 
         }
-
-
+//        cudaStreamSynchronize(stream);
+//        cudaDeviceSynchronize();
         // allocate host memory: match result
         //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
 
@@ -197,6 +203,11 @@ int main(int argc, char *argv[]) {
 //            printf("after the call of kernel function once: error = %s\n", cudaGetErrorString (cuda_err));
 //            exit(1) ;
 //        }
+        printf("finsh the match loop\n");
+    }
+
+    for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++){
+        cudaDeviceSynchronize();
     }
 
     //TODO: synchronise threads that did the matching once the above TODO is done

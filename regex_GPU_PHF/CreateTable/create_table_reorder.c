@@ -218,7 +218,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     printf("finshed read pattern\n");
     
     printf("pattern_num is %d\n",pattern_num);
-    cudaGetDeviceCount(&GPU_N);
+//    cudaGetDeviceCount(&GPU_N);
 
     //the number of patterns to feed to GPUs 0 to GPU_N-2
     int k = pattern_num/GPU_N;

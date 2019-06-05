@@ -450,12 +450,12 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         int width_bit;
         for (width_bit = 0; (width >> width_bit)!=1; width_bit++);
 
-        // check error before kernel launch
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
-            printf("before kernel call: error = %s\n", cudaGetErrorString (cuda_err));
+            printf("before kernel call1: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
+
 
         // record time setting
         cudaEvent_t start, stop;
@@ -464,8 +464,22 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         cudaEventCreate(&stop);
         cudaEventRecord(start, 0);
 
-        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("before kernel call2: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
+
+//        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402
         //cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*2048);//add by qiao 20190402
+
+
+        // check error before kernel launch
+        cuda_err = cudaGetLastError() ;
+        if ( cudaSuccess != cuda_err ) {
+            printf("before kernel call3: error = %s\n", cudaGetErrorString (cuda_err));
+            exit(1) ;
+        }
 
         if (state_num < 32768 && width_bit == 8) {
             TraceTable_kernel_fast <<< dimGrid, dimBlock >>> (
@@ -474,7 +488,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
                             d_val_table, max_pat_len);
         }
         else {
-            TraceTable_kernel <<< dimGrid, dimBlock, stream >>> (
+            TraceTable_kernel <<< dimGrid, dimBlock, 0, stream >>> (
                     d_match_result, (int *)d_input_string, input_size, HTSize,
                             width_bit, final_state_num, MaxRow, num_blocks, boundary, d_s0Table, d_r, d_hash_table,
                             d_val_table, max_pat_len);
@@ -514,7 +528,6 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         //   if(match_result[testindex] < -1) printf("Negative value %d at index %d\n", match_result[testindex], testindex);
         // }
 
-        cudaStreamSynchronize(stream);
 
 
         clock_gettime( CLOCK_REALTIME, &transOutTime_end);
@@ -584,9 +597,14 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         //   if(match_result[testindex] < -1) printf("2Negative value %d at index %d\n", match_result[testindex], testindex);
         // }
 
-        cudaStreamDestory(stream);
+//        cudaStreamDestroy(stream);
 
-        return 0 ;
+        cudaError_t streamDestory_info = cudaStreamDestroy(stream);
+        if ( cudaSuccess != streamDestory_info ) {
+            printf("cudaStreamDestory get info fails\n");
+            exit(1);
+        }
+    return 0 ;
 
 
 }
