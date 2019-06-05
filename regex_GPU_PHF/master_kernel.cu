@@ -282,15 +282,15 @@ __global__ void TraceTable_kernel_fast(unsigned int *d_match_result, int *d_in_i
 ****************************************************************************/
 int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
                    int final_state_num, unsigned int* match_result, int HTSize, int width,
-                   int *s0Table, int max_pat_len, int r[], int HT[], int val[])
+                   int *s0Table, int max_pat_len, int r[], int HT[], int val[], cudaStream_t stream)
 {
         cudaError_t cuda_err;
-        struct timespec transInTime_begin, transInTime_end;
-        double transInTime;
-        struct timespec transOutTime_begin, transOutTime_end;
-        double transOutTime;
-        size_t free_mem;
-        size_t total_mem;
+//        struct timespec transInTime_begin, transInTime_end;
+//        double transInTime;
+//        struct timespec transOutTime_begin, transOutTime_end;
+//        double transOutTime;
+//        size_t free_mem;
+//        size_t total_mem;
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -328,10 +328,6 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         int *d_s0Table;
         int MaxRow;
 
-        //create stream
-        cudaStream_t stream;
-        cudaStreamCreate(&stream);
-
         MaxRow = (state_num*CHAR_SET) / width + 1;
         cudaMalloc((void **) &d_input_string, num_blocks*PAGE_SIZE_C+EXTRA_SIZE_PER_TB*sizeof(int) );
 
@@ -361,28 +357,28 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             printf("after malloc memory4: error = %s\n", cudaGetErrorString (cuda_err));
             exit(1) ;
         }
-        printf("(int=%d:unsigned int=%d)\n",sizeof(int),sizeof(unsigned int));
+//        printf("(int=%d:unsigned int=%d)\n",sizeof(int),sizeof(unsigned int));
 
-        cudaError_t mem_info1 = cudaMemGetInfo( &free_mem, &total_mem);
-        if ( cudaSuccess != mem_info1 ) {
-            printf("memory get info fails\n");
-            exit(1) ;
-        }
-        printf("total mem = %lf MB, free mem before malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
-        printf("Trying to allocate %lu bits of memory\n", (size_t)max_pat_len*(size_t)input_size*sizeof(short));
-        printf("Test %u\n", (unsigned int)max_pat_len*(unsigned int)input_size);
-        printf("max_pat_len: %d, input_size: %d, sizeof(unsigned int): %lu", max_pat_len, input_size, sizeof(unsigned int));
+//        cudaError_t mem_info1 = cudaMemGetInfo( &free_mem, &total_mem);
+//        if ( cudaSuccess != mem_info1 ) {
+//            printf("memory get info fails\n");
+//            exit(1) ;
+//        }
+//        printf("total mem = %lf MB, free mem before malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
+//        printf("Trying to allocate %lu bits of memory\n", (size_t)max_pat_len*(size_t)input_size*sizeof(short));
+//        printf("Test %u\n", (unsigned int)max_pat_len*(unsigned int)input_size);
+//        printf("max_pat_len: %d, input_size: %d, sizeof(unsigned int): %lu", max_pat_len, input_size, sizeof(unsigned int));
 
 
         cudaMalloc((void **) &d_match_result, (size_t)max_pat_len*(size_t)input_size*sizeof(unsigned int));
 
 
-        cudaError_t mem_info2 = cudaMemGetInfo( &free_mem, &total_mem);
-        if ( cudaSuccess != mem_info2 ) {
-            printf("memory get info fails\n");
-            exit(1) ;
-        }
-        printf("total mem = %lf MB, free mem after malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
+//        cudaError_t mem_info2 = cudaMemGetInfo( &free_mem, &total_mem);
+//        if ( cudaSuccess != mem_info2 ) {
+//            printf("memory get info fails\n");
+//            exit(1) ;
+//        }
+//        printf("total mem = %lf MB, free mem after malloc d_match_result = %lf MB \n", total_mem/1024.0/1024.0 , free_mem/1024.0/1024.0 );
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -397,19 +393,19 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
             exit(1) ;
         }
 
-        clock_gettime( CLOCK_REALTIME, &transInTime_begin);
+//        clock_gettime( CLOCK_REALTIME, &transInTime_begin);
         // copy input string from host to device
         cudaMemcpyAsync(d_input_string, input_string, input_size, cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(d_r, r, MaxRow*sizeof(int), cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(d_hash_table, HT, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(d_s0Table, s0Table, CHAR_SET*sizeof(int), cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(d_val_table, val, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);//add by qiao 0324
-        clock_gettime( CLOCK_REALTIME, &transInTime_end);
-        transInTime = (transInTime_end.tv_sec - transInTime_begin.tv_sec) * 1000.0;
-        transInTime += (transInTime_end.tv_nsec - transInTime_begin.tv_nsec) / 1000000.0;
-        printf("1. H2D transfer time: %lf ms\n", transInTime);
-        printf("   H2D throughput: %lf GBps\n", (input_size+MaxRow*sizeof(int)+HTSize*sizeof(int)+CHAR_SET*sizeof(int))
-                                                /(transInTime*1000000));
+//        clock_gettime( CLOCK_REALTIME, &transInTime_end);
+//        transInTime = (transInTime_end.tv_sec - transInTime_begin.tv_sec) * 1000.0;
+//        transInTime += (transInTime_end.tv_nsec - transInTime_begin.tv_nsec) / 1000000.0;
+//        printf("1. H2D transfer time: %lf ms\n", transInTime);
+//        printf("   H2D throughput: %lf GBps\n", (input_size+MaxRow*sizeof(int)+HTSize*sizeof(int)+CHAR_SET*sizeof(int))
+//                                                /(transInTime*1000000));
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
             printf("after malloc memory7: error = %s\n", cudaGetErrorString (cuda_err));
@@ -502,14 +498,14 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         }
 
         // record time setting
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&time, start, stop);
-        printf("2. MASTER: The elapsed time is %f ms\n", time);
-        printf("   MASTER: The throughput is %f Gbps\n",(float)(input_size)/(time*1000000)*8 );
-        cudaEventDestroy(start);
-        cudaEventDestroy(stop);
-        clock_gettime( CLOCK_REALTIME, &transOutTime_begin);
+//        cudaEventRecord(stop, 0);
+//        cudaEventSynchronize(stop);
+//        cudaEventElapsedTime(&time, start, stop);
+//        printf("2. MASTER: The elapsed time is %f ms\n", time);
+//        printf("   MASTER: The throughput is %f Gbps\n",(float)(input_size)/(time*1000000)*8 );
+//        cudaEventDestroy(start);
+//        cudaEventDestroy(stop);
+//        clock_gettime( CLOCK_REALTIME, &transOutTime_begin);
 
         cuda_err = cudaGetLastError() ;
         if ( cudaSuccess != cuda_err ) {
@@ -529,16 +525,21 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         // }
 
 
+//
+//        clock_gettime( CLOCK_REALTIME, &transOutTime_end);
+//        transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
+//        transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
+//        printf("3. D2H transfer time: %lf ms\n", transOutTime);
+//        printf("   D2H throughput: %lf GBps\n", (input_size*sizeof(unsigned int))/(transOutTime*1000000));
+//
+//        printf("4. Total elapsed time: %lf ms\n", transInTime+transOutTime+time);
+//        printf("   Total throughput: %lf Gbps\n", (double)input_size/((transInTime+transOutTime+time)*1000000)*8);
+//        printf("///////////////////////////////////////////////////////\n");
 
-        clock_gettime( CLOCK_REALTIME, &transOutTime_end);
-        transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
-        transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
-        printf("3. D2H transfer time: %lf ms\n", transOutTime);
-        printf("   D2H throughput: %lf GBps\n", (input_size*sizeof(unsigned int))/(transOutTime*1000000));
+        printf("does the error comes behind here?\n");
 
-        printf("4. Total elapsed time: %lf ms\n", transInTime+transOutTime+time);
-        printf("   Total throughput: %lf Gbps\n", (double)input_size/((transInTime+transOutTime+time)*1000000)*8);
-        printf("///////////////////////////////////////////////////////\n");
+        cudaStreamSynchronize(stream);
+
 
 
         // release memory
@@ -597,13 +598,6 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
         //   if(match_result[testindex] < -1) printf("2Negative value %d at index %d\n", match_result[testindex], testindex);
         // }
 
-//        cudaStreamDestroy(stream);
-
-        cudaError_t streamDestory_info = cudaStreamDestroy(stream);
-        if ( cudaSuccess != streamDestory_info ) {
-            printf("cudaStreamDestory get info fails\n");
-            exit(1);
-        }
     return 0 ;
 
 

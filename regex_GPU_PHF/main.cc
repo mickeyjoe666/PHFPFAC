@@ -14,7 +14,7 @@ int *outputs[MAX_STATE];              // list of matched pattern for each state
 
 int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
                    int final_state_num, unsigned int* match_result, int HTSize, int width,
-                   int *s0Table, int max_pat_len, int r[], int HT[], int val[]);
+                   int *s0Table, int max_pat_len, int r[], int HT[], int val[],cudaStream_t stream);
 
 /****************************************************************************
 *   Function   : main
@@ -144,9 +144,16 @@ int main(int argc, char *argv[]) {
         }
         cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402
 
-        //create stream for each thread
-//        cudaStream_t stream;
+        //create stream for each GPU
+        cudaStream_t stream[streamnum];
+	for(int i = 0; i < streamnum; i++){
+	   cudaStreamCreate(&stream[i]);
+	}
+
         for(int i = 0; i < streamnum; i++){
+
+
+
 
             int stream_id = GPUnum*streamnum +i;
             status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
@@ -160,12 +167,14 @@ int main(int argc, char *argv[]) {
 
             GPU_TraceTable(input_string, input_size, state_num[stream_id], final_state_num[stream_id],
                            match_result[stream_id], HTSize[stream_id], width, PFACs[stream_id][(final_state_num[stream_id]+1)],
-                           max_pat_len_arr[stream_id], r[stream_id], HT[stream_id], val[stream_id]);
+                           max_pat_len_arr[stream_id], r[stream_id], HT[stream_id], val[stream_id],stream[i] );
 
-
+            printf("finsh the match1 loop\n");
         }
-//        cudaStreamSynchronize(stream);
-//        cudaDeviceSynchronize();
+
+        for(int i = 0; i < streamnum; i++){
+            cudaStreamDestroy(stream[i]);
+        }
         // allocate host memory: match result
         //status = cudaMallocHost((void **) &(match_result[GPUnum]), sizeof(unsigned int)*input_size*max_pat_len_arr[GPUnum]);
 
@@ -203,12 +212,9 @@ int main(int argc, char *argv[]) {
 //            printf("after the call of kernel function once: error = %s\n", cudaGetErrorString (cuda_err));
 //            exit(1) ;
 //        }
-        printf("finsh the match loop\n");
+        printf("finsh the match3 loop\n");
     }
 
-    for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++){
-        cudaDeviceSynchronize();
-    }
 
     //TODO: synchronise threads that did the matching once the above TODO is done
     cudaFreeHost(input_string);
