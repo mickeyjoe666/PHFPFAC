@@ -230,7 +230,7 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
     
     // compute hash table size
     for (i = MaxOffset; i < MaxOffset + width; i++) {
-        if (HT[i] > 0 || val[i] > 0 ) {
+        if (HT[i] >= 0 || val[i] >= 0 ) {
             HTSize = i + 1;
         }
     }
@@ -271,7 +271,7 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
     printf("  (\033[96m%7lu\033[m Bytes)\n", (HTSize) * sizeof(int) );
     printf("Val table size   : \033[96m%7d\033[m", HTSize );
     printf("  (\033[96m%7lu\033[m Bytes)\n", (HTSize) * sizeof(int) );
-    printf("Memory size       : \033[97m%7lu\033[m KBytes\n", (MaxRow + HTSize*2) * sizeof(int));
+    printf("Memory size       : \033[97m%7lu\033[m Bytes\n", (MaxRow + HTSize*2) * sizeof(int));
     printf("Memory size       : \033[97m%7lu\033[m KBytes\n", (MaxRow + HTSize*2) * sizeof(int)/1024 );
     printf("Memory Efficiency       : \033[97m%7.2lf\033[m KBytes\n", (double)(MaxRow + HTSize*2) * sizeof(int)/NumKeys);
 

@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
     //Array contaning the number of final states in the automaton of each GPU
     int* final_state_num = (int*)malloc(GPU_N*sizeof(int));
     //Array contaning maximum pattern length in the automaton of each GPU
-    int* max_pat_len_arr = (int*)malloc(GPU_N*sizeof(int));
+    int* max_pat_len_arr = (int*)calloc(GPU_N, sizeof(int));
     //Maximum pattern length over all patterns
     int max_pat_len = 0;
     //Array of the automatons of each GPU
@@ -158,7 +158,18 @@ int main(int argc, char *argv[]) {
 
 
 
+    for (int GPUnum = 0; GPUnum < GPU_S; GPUnum++){
+        for(int i = 0; i < streamnum; i++){
+            int stream_id = GPUnum*streamnum +i;
 
+            status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
+            printf("using the %d GPU\n", GPUnum);
+            if (cudaSuccess != status) {
+                fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
+                exit(1);
+            }
+        }
+    }
 
 
 
@@ -191,12 +202,12 @@ int main(int argc, char *argv[]) {
             thread_data_array[stream_id].HT = HT[stream_id];
             thread_data_array[stream_id].val = val[stream_id];
 
-            status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
-            printf("using the %d GPU\n", GPUnum);
-            if (cudaSuccess != status) {
-                fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
-                exit(1);
-            }
+//            status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
+//            printf("using the %d GPU\n", GPUnum);
+//            if (cudaSuccess != status) {
+//                fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
+//                exit(1);
+//            }
         }
 
 
