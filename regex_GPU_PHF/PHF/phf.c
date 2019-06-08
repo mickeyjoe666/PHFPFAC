@@ -59,7 +59,7 @@ struct RowStruct {    // structure for each row of Keys[][]
 *   Parameters : None
 *   Returned   : No use
 ****************************************************************************/
-void InitArrays(int ** Keys, int r[], int HT[], int val[], RowStruct Row[]) {
+void InitArrays( int r[], int HT[], int val[], RowStruct Row[]) {
     int row;
     
     // initialize following arrays to -1
@@ -72,7 +72,7 @@ void InitArrays(int ** Keys, int r[], int HT[], int val[], RowStruct Row[]) {
         Row[row].RowNumber  = row;   // insert the row numbers and
         Row[row].RowItemCnt = 0;     // indicate that each row is empty
         Row[row].RowItemIdx = NULL;  // the item index in the row
-        memset(Keys[row], 0xFF, COL_MAX*sizeof(int));
+//        memset(Keys[row], 0xFF, COL_MAX*sizeof(int));
     }
 }
 
@@ -87,7 +87,7 @@ void InitArrays(int ** Keys, int r[], int HT[], int val[], RowStruct Row[]) {
 *                MaxKey - Address of varible to store max key number
 *   Returned   : No use
 ****************************************************************************/
-int ReadKey(int** ary, int ary_size, int width, int *KeyCount, int *MaxKey, int** Keys, RowStruct Row[]) {
+int ReadKey(int** ary, int ary_size, int width, int *KeyCount, int *MaxKey, RowStruct Row[]) {
     int key;
     int row, col;
     
@@ -103,7 +103,7 @@ int ReadKey(int** ary, int ary_size, int width, int *KeyCount, int *MaxKey, int*
             fprintf(stderr, "Row > ROW_MAX(%d)\n", ROW_MAX);
             exit(-3);
         }
-        Keys[row][col] = key;
+//        Keys[row][col] = key;
         Row[row].RowItemCnt += 1;
         Row[row].RowItemIdx = (int *) realloc(Row[row].RowItemIdx, Row[row].RowItemCnt*sizeof(int));
         Row[row].RowItemIdx[ (Row[row].RowItemCnt)-1 ] = col;
@@ -153,18 +153,18 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
     int i, ndx, rc, row, col, key, mergeVal;
     int offset, rowItemCnt;
     int *rowPtr;
-    int** Keys = (int**)malloc(ROW_MAX*sizeof(int*));
-    for (int Keysrow = 0; Keysrow < ROW_MAX; Keysrow++) {
-        Keys[Keysrow] = (int*)malloc(COL_MAX*sizeof(int));
-    }
+//    int** Keys = (int**)malloc(ROW_MAX*sizeof(int*));
+//    for (int Keysrow = 0; Keysrow < ROW_MAX; Keysrow++) {
+//        Keys[Keysrow] = (int*)malloc(COL_MAX*sizeof(int));
+//    }
     RowStruct* Row = (RowStruct*)malloc(ROW_MAX*sizeof(RowStruct));
     if (width > COL_MAX) {
         printf("width may not exceed %d\n", COL_MAX);
         exit(-1);
     }
-    InitArrays(Keys, r, HT, val, Row);
+    InitArrays(r, HT, val, Row);
     // read in the user's key data
-    rc = ReadKey(ary, ary_size, width, &NumKeys, &MaxKey, Keys, Row);
+    rc = ReadKey(ary, ary_size, width, &NumKeys, &MaxKey, Row);
     if (rc != 0) {
         printf("ReadKey() failed with error %d\n", rc);
         exit(rc);
@@ -281,6 +281,9 @@ int FFDM(int **ary, int ary_size, int width, int* r, int* HT, int* val) {
     printf("((\033[4mr table size\033[m + \033[4mHash table size\033[m) / \033[4m2D PFAC table size\033[m)\n");
     printf("\n");
 #endif
+
+
+//    free(row);
 
 
 

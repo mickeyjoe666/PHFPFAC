@@ -214,9 +214,14 @@ int main(int argc, char *argv[]) {
         for(int i = 0; i < streamnum; i++){
             int stream_id = GPUnum*streamnum +i;
             GPU_Malloc_Memory(thread_data_array[stream_id], &(d_input_string[i]), &(d_r[i]), &(d_hash_table[i]), &(d_match_result[i]), &(d_val_table[i]), &(d_s0Table[i]));
-
-
         }
+
+        // record time setting
+        cudaEvent_t start, stop;
+        float time;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+        cudaEventRecord(start, 0);
 
 
         for(int i = 0; i < streamnum; i++){
@@ -225,9 +230,16 @@ int main(int argc, char *argv[]) {
             GPU_TraceTable(thread_data_array[stream_id], stream[i], d_input_string[i], d_r[i], d_hash_table[i], d_match_result[i], d_val_table[i], d_s0Table[i]);
         }
 
-        for(int i = 0; i < streamnum; i++){
-            cudaStreamSynchronize(stream[i]);
-        }
+//        for(int i = 0; i < streamnum; i++){
+//            cudaStreamSynchronize(stream[i]);
+//        }
+
+        // record time setting
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&time, start, stop);
+
+        printf("The GPU elapsed time is %f ms\n", time);
 
         for(int i = 0; i < streamnum; i++){
             GPU_Free_memory(&(d_input_string[i]), &(d_r[i]), &(d_hash_table[i]), &(d_match_result[i]), &(d_val_table[i]), &(d_s0Table[i]));

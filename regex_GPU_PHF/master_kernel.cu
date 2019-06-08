@@ -300,6 +300,12 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
+    // record time setting
+    cudaEvent_t start, stop;
+    float time;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
 
     cudaMemcpyAsync(d_input_string, input_string, input_size, cudaMemcpyHostToDevice, stream);
     cuda_err = cudaGetLastError() ;
@@ -353,13 +359,20 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
 
     cudaMemcpyAsync(match_result, d_match_result, sizeof(int)*max_pat_len*input_size, cudaMemcpyDeviceToHost, stream);
 
+    // record time setting
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+
+    printf("The elapsed time is %f ms\n", time);
+
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda memcpy error6 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
 
-    cudaStreamSynchronize(stream);
+//    cudaStreamSynchronize(stream);
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
