@@ -29,9 +29,9 @@ struct thread_data{
 };
 
 
-int GPU_Malloc_Memory(thread_data dataset, unsigned char *d_input_string, int *d_r, int *d_hash_table, unsigned int *d_match_result, int *d_val_table, int *d_s0Table);
+int GPU_Malloc_Memory(thread_data dataset, unsigned char **d_input_string, int **d_r, int **d_hash_table, unsigned int **d_match_result, int **d_val_table, int **d_s0Table);
 int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_input_string, int *d_r, int *d_hash_table, unsigned int *d_match_result, int *d_val_table, int *d_s0Table);
-int GPU_Free_memory(unsigned char *d_input_string, int *d_r, int *d_hash_table, unsigned int *d_match_result, int *d_val_table, int *d_s0Table);
+int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_table, unsigned int **d_match_result, int **d_val_table, int **d_s0Table);
 
 /****************************************************************************
 *   Function   : main
@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
     unsigned int** match_result = (unsigned int**)malloc(GPU_N*sizeof(unsigned int*));
     int i;
     int j;
-    int x;
+    int x = 0;
     struct thread_data thread_data_array[GPU_N];
 
     unsigned char *d_input_string[streamnum];
@@ -111,8 +111,7 @@ int main(int argc, char *argv[]) {
         printf("state num on GPU %d : %d\n", GPUnum, state_num[GPUnum]);
         printf("final state num on GPU %d : %d\n", GPUnum, final_state_num[GPUnum]);
         printf("max pattern length on GPU %d : %d\n", GPUnum, max_pat_len_arr[GPUnum]);
-
-//        // output PFAC table
+        // output PFAC table
 //        fprintf(fw, "PFAC for GPU %d\n", GPUnum);
 //        for (i = 0; i < state_num[GPUnum]; i++) {
 //            for (j = 0; j < CHAR_SET; j++) {
@@ -157,13 +156,12 @@ int main(int argc, char *argv[]) {
     fclose(fpin);
 
 
-
+    // allocate host memory: match_result
     for (int GPUnum = 0; GPUnum < GPU_S; GPUnum++){
         for(int i = 0; i < streamnum; i++){
             int stream_id = GPUnum*streamnum +i;
-
-            status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
-            printf("using the %d GPU\n", GPUnum);
+            status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(int)* input_size* max_pat_len_arr[stream_id], cudaHostAllocPortable);
+//            printf("using the %d GPU\n", GPUnum);
             if (cudaSuccess != status) {
                 fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
                 exit(1);
@@ -174,6 +172,7 @@ int main(int argc, char *argv[]) {
 
 
     for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++) {
+        cudaSetDevice(GPUnum);
         if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
             fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
             exit(1);
@@ -214,16 +213,15 @@ int main(int argc, char *argv[]) {
 
         for(int i = 0; i < streamnum; i++){
             int stream_id = GPUnum*streamnum +i;
-            GPU_Malloc_Memory(thread_data_array[stream_id], d_input_string[i], d_r[i], d_hash_table[i], d_match_result[i], d_val_table[i], d_s0Table[i]);
+            GPU_Malloc_Memory(thread_data_array[stream_id], &(d_input_string[i]), &(d_r[i]), &(d_hash_table[i]), &(d_match_result[i]), &(d_val_table[i]), &(d_s0Table[i]));
 
 
         }
 
+
         for(int i = 0; i < streamnum; i++){
             int stream_id = GPUnum*streamnum +i;
-            printf("stream is %dnow \n",stream_id);
-            printf("GPU_N is %dnow \n",GPU_N);
-
+            printf("stream is %d now \n",stream_id);
             GPU_TraceTable(thread_data_array[stream_id], stream[i], d_input_string[i], d_r[i], d_hash_table[i], d_match_result[i], d_val_table[i], d_s0Table[i]);
         }
 
@@ -232,7 +230,7 @@ int main(int argc, char *argv[]) {
         }
 
         for(int i = 0; i < streamnum; i++){
-            GPU_Free_memory(d_input_string[i], d_r[i], d_hash_table[i], d_match_result[i], d_val_table[i], d_s0Table[i]);
+            GPU_Free_memory(&(d_input_string[i]), &(d_r[i]), &(d_hash_table[i]), &(d_match_result[i]), &(d_val_table[i]), &(d_s0Table[i]));
         }
 
         for(int i = 0; i < streamnum; i++){
@@ -246,24 +244,44 @@ int main(int argc, char *argv[]) {
     //TODO: synchronise threads that did the matching once the above TODO is done
     cudaFreeHost(input_string);
     printf("cudaFreeHost(input_string); done\n");
+    printf("max_pat_len is %d \n",max_pat_len);
+
+
+
+//    for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++){
+//        for(int i = 0; i< final_state_num[GPUnum];i++){
+//            printf("pattern id is %d\n", patternIdMaps[GPUnum][i]);
+//
+//        }
+//    }
+
+//    printf("x is %d\n", x);
+
 
     int* match_result_aggreg = (int*)malloc(sizeof(int)*(size_t)input_size*(size_t)max_pat_len);
     memset(match_result_aggreg, 0xFF, sizeof(int)*(size_t)input_size*(size_t)max_pat_len);
     for (int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
         for (i = 0; i < input_size; i++) {
             unsigned int k = (unsigned int)i * (unsigned int)max_pat_len;
-            while(match_result_aggreg[k] != -1) k++;
+            while(match_result_aggreg[k] != -1) {
+//                printf("match_result_aggreg[k] is %d, k is%d \n", match_result_aggreg[k], k);
+                k++;
+            }
+//            printf("the problem comes from here\n");
             for (j = 0; j < max_pat_len_arr[GPUnum]; j++) {
                 if(match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j] != -1) {
                     int matched_id = patternIdMaps[GPUnum][match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j]];
                     match_result_aggreg[k++] = matched_id;
+//                    printf("At position %d, match pattern %d,match result is %d\n", i, matched_id, match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j]);
                     if(matched_id < -1) printf("negative matched id: %d, GPUnum: %d i: %d j: %d\n", matched_id, GPUnum, i, j);
                 }
                 else
                     break;
             }
+//            printf("k is %d\n",k);
         }
         cudaFreeHost(match_result[GPUnum]);
+        printf("match_result memory is freed, %d\n",GPUnum);
     }
 
     char* output_file_name = "GPU_match_result.txt";

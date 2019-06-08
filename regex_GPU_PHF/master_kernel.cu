@@ -152,14 +152,15 @@ __global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int
     // save match result from registers to global memory
     start = gbid * PAGE_SIZE_C + tid;
     unsigned int d_match_size = (unsigned int)max_pat_len * (unsigned int)input_size;
-    unsigned int thread_offset = (unsigned int)start * (unsigned int)max_pat_len; 
+    unsigned int thread_offset = (unsigned int)start * (unsigned int)max_pat_len;
     #pragma unroll
     for (int i = 0; i < 8; i++) {
         unsigned int i_offset = (unsigned int)i * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE;
         for (int j = 0; j < max_pat_len; j++) {
             if(thread_offset + i_offset + (unsigned int)j < 0) printf("Overflow??\n");
             if(thread_offset + i_offset + (unsigned int)j < d_match_size) {
-              d_match_result[thread_offset + i_offset + (unsigned int)j] = match[i][j];
+                d_match_result[thread_offset + i_offset + (unsigned int)j] = match[i][j];
+//                printf("match result is %d\n", d_match_result[thread_offset + i_offset + (unsigned int)j]);
             }
             if(int(match[i][j])<-1) printf("???\n");
         }
@@ -170,48 +171,10 @@ __global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int
 // First, look up s_s0Table to jump from initial state to next state.
 // If the thread in still alive, then keep tracing HT (hash table)
 // in texture until the thread be terminated (-1).
-#define  SUBSEG_MATCH_FAST( j, match ) \
-    pos = tid + j * BLOCK_SIZE ; \
-    inputChar = s_in_c[pos]; \
-    state = s_s0Table[inputChar]; \
-    yang123 = 0; \
-    if (state >= 0) { \
-        if (state < num_final_state) { \
-            match[yang123] = state; \
-            yang123++; \
-        } \
-        pos += 1; \
-        while (1) { \
-            if (pos >= bdy) break; \
-            inputChar = s_in_c[pos]; \
-            int index = d_r[state] + inputChar; \
-            if (index >= HTSize) \
-                state = -1; \
-            else { \
-                int hashValue = d_hash_table[index]; \
-                if (hashValue == state) \
-                    state = d_val_table[index] ; \
-                else \
-                    state = -1; \
-            } \
-            \
-            if (state == -1) break; \
-            if (state < num_final_state) { \
-            match[yang123] = state; \
-            yang123++; \
-            } \
-            pos += 1; \
-        } \
-    }
 
 
 
-
-
-
-
-
-int GPU_Malloc_Memory(thread_data dataset, unsigned char *d_input_string, int *d_r, int *d_hash_table, unsigned int *d_match_result, int *d_val_table, int *d_s0Table)
+int GPU_Malloc_Memory(thread_data dataset, unsigned char **d_input_string, int **d_r, int **d_hash_table, unsigned int **d_match_result, int **d_val_table, int **d_s0Table)
 {
     unsigned char* input_string = dataset.input_string;
     int input_size = dataset.input_size;
@@ -225,8 +188,10 @@ int GPU_Malloc_Memory(thread_data dataset, unsigned char *d_input_string, int *d
     int* r = dataset.r;
     int* HT = dataset.HT;
     int* val = dataset.val;
+
     // num_blocks = number of blocks to cover input stream
     int num_blocks = (input_size + PAGE_SIZE_C-1) / PAGE_SIZE_C ;
+    cudaError_t cuda_err;
 
     // allocate memory for input string and result
 //    unsigned char *d_input_string;
@@ -238,22 +203,28 @@ int GPU_Malloc_Memory(thread_data dataset, unsigned char *d_input_string, int *d
     int MaxRow;
     MaxRow = (state_num*CHAR_SET) / width + 1;
 
-    cudaMalloc((void **) &d_input_string, num_blocks*PAGE_SIZE_C+EXTRA_SIZE_PER_TB*sizeof(int) );
+    cudaMalloc((void **) d_input_string, num_blocks*PAGE_SIZE_C+EXTRA_SIZE_PER_TB*sizeof(int) );
 
 
-    cudaMalloc((void **) &d_r, MaxRow*sizeof(int) );
+    cudaMalloc((void **) d_r, MaxRow*sizeof(int) );
 
 
-    cudaMalloc((void **) &d_hash_table, HTSize*sizeof(int) );
+    cudaMalloc((void **) d_hash_table, HTSize*sizeof(int) );
 
 
-    cudaMalloc((void **) &d_val_table, HTSize*sizeof(int) );//add by qiao 0324
+    cudaMalloc((void **) d_val_table, HTSize*sizeof(int) );//add by qiao 0324
 
 
-    cudaMalloc((void **) &d_match_result, (size_t)max_pat_len*(size_t)input_size*sizeof(unsigned int));
+    cudaMalloc((void **) d_match_result, (size_t)max_pat_len*(size_t)input_size*sizeof(unsigned int));
 
 
-    cudaMalloc((void **) &d_s0Table, CHAR_SET*sizeof(int));
+    cudaMalloc((void **) d_s0Table, CHAR_SET*sizeof(int));
+
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda malloc memory error = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
 
 
     return 0;
@@ -297,6 +268,7 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
 
     int MaxRow;
     MaxRow = (state_num*CHAR_SET) / width + 1;
+    cudaError_t cuda_err;
 
 
 
@@ -322,57 +294,143 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
     printf("grid=(%d, %d), num_blocks=%d\n", dimGrid.x, dimGrid.y, num_blocks);
     printf("input_size = %d char\n", input_size );
 
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda memcpy error0 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
+
 
     cudaMemcpyAsync(d_input_string, input_string, input_size, cudaMemcpyHostToDevice, stream);
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda memcpy error1 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     cudaMemcpyAsync(d_r, r, MaxRow*sizeof(int), cudaMemcpyHostToDevice, stream);
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda memcpy error2 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     cudaMemcpyAsync(d_hash_table, HT, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda memcpy error3 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     cudaMemcpyAsync(d_s0Table, s0Table, CHAR_SET*sizeof(int), cudaMemcpyHostToDevice, stream);
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda memcpy error4 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     cudaMemcpyAsync(d_val_table, val, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);//add by qiao 0324
+
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda memcpy error5 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
 
         // count bit of width (ex: if width is 256, width_bit is 8)
     int width_bit;
     for (width_bit = 0; (width >> width_bit)!=1; width_bit++);
 
+//    cudaStreamSynchronize(stream);
+
     TraceTable_kernel <<< dimGrid, dimBlock, 0, stream >>> (d_match_result, (int *)d_input_string, input_size, HTSize,
         width_bit, final_state_num, MaxRow, num_blocks, boundary, d_s0Table, d_r, d_hash_table,
         d_val_table, max_pat_len);
 
-    cudaMemcpyAsync(match_result, d_match_result, sizeof(unsigned int)*max_pat_len*input_size, cudaMemcpyDeviceToHost, stream);
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda kernel excute error = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
+
+//    cudaStreamSynchronize(stream);
+
+    cudaMemcpyAsync(match_result, d_match_result, sizeof(int)*max_pat_len*input_size, cudaMemcpyDeviceToHost, stream);
+
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda memcpy error6 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
 
     cudaStreamSynchronize(stream);
 
-
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda streamsync error = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     return 0 ;
 
 
 }
 
-int GPU_Free_memory(unsigned char *d_input_string, int *d_r, int *d_hash_table, unsigned int *d_match_result, int *d_val_table, int *d_s0Table)
+int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_table, unsigned int **d_match_result, int **d_val_table, int **d_s0Table)
 {
+    cudaError_t cuda_err;
     // release memory
-    cudaFree(d_input_string);
+    cudaFree(*d_input_string);
+
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda free memory error1 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     printf("cudaFree(d_input_string); done\n");
 
 
-    cudaFree(d_r);
+    cudaFree(*d_r);
+
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda free memory error2 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     printf("cudaFree(d_r); done\n");
 
 
     //cudaUnbindTexture(tex_HT);
-    cudaFree(d_hash_table);
+    cudaFree(*d_hash_table);
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda free memory error3 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     printf("cudaFree(d_hash_table); done\n");
 
 
-    cudaFree(d_val_table);//add by qiao0324
+    cudaFree(*d_val_table);//add by qiao0324
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda free memory error4 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     printf("cudaFree(d_val_table); done\n");
 
 
-    cudaFree(d_match_result);
+    cudaFree(*d_match_result);
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda free memory error5 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
     printf("cudaFree(d_match_result); done\n");
 
 
-    cudaFree(d_s0Table);
+    cudaFree(*d_s0Table);
     printf("cudaFree(d_s0Table); done\n");
+
+    cuda_err = cudaGetLastError() ;
+    if ( cudaSuccess != cuda_err ) {
+        printf("cuda free memory error6 = %s\n", cudaGetErrorString (cuda_err));
+        exit(1) ;
+    }
 
     return 0;
 };
