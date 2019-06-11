@@ -41,7 +41,8 @@ int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_tabl
 ****************************************************************************/
 int main(int argc, char *argv[]) {
     //number of GPUs on the machine
-    int streamnum = 3;
+    int streamnum;
+    streamnum = atoi(argv[2]);
     int GPU_S;
     cudaGetDeviceCount(&GPU_S);
     int GPU_N = streamnum * GPU_S;
@@ -70,7 +71,6 @@ int main(int argc, char *argv[]) {
         HT[GPUnum] = (int*)malloc(HASHTABLE_MAX*sizeof(int));
         val[GPUnum] = (int*)malloc(HASHTABLE_MAX*sizeof(int));
     }
-    int type;
     int width; 
     unsigned char *input_string;
     int input_size;
@@ -80,6 +80,16 @@ int main(int argc, char *argv[]) {
     int x = 0;
     struct thread_data thread_data_array[GPU_N];
 
+
+
+    // check command line arguments
+    if (argc != 5) {
+        fprintf(stderr, "usage: %s <pattern file name> <streamnum> <PHF width> <input file name>\n", argv[0]);
+        exit(-1);
+    }
+
+   
+    // read pattern file and create PFAC table
     unsigned char *d_input_string[streamnum];
     int *d_r[streamnum];
     int *d_hash_table[streamnum];
@@ -87,18 +97,8 @@ int main(int argc, char *argv[]) {
     int *d_val_table[streamnum];//add by qiao 0324
     int *d_s0Table[streamnum];
 
-
-    // check command line arguments
-    if (argc != 5) {
-        fprintf(stderr, "usage: %s <pattern file name> <type> <PHF width> <input file name>\n", argv[0]);
-        exit(-1);
-    }
-
-   
-    // read pattern file and create PFAC table
-    type = atoi(argv[2]);
-    printf("still ok before entry create_PFAC_table_reorder\n");
-    create_PFAC_table_reorder(argv[1], state_num, final_state_num, type, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
+//    printf("still ok before entry create_PFAC_table_reorder\n");
+    create_PFAC_table_reorder(argv[1], state_num, final_state_num, streamnum, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
 
 
 //    char* fname = "PFAC_table.txt";
@@ -124,6 +124,7 @@ int main(int argc, char *argv[]) {
     }
 //    fclose(fw);
 
+    //TODO: make  hash table created be parallel
 
     // create PHF hash table from PFAC table
     width = atoi(argv[3]);
@@ -169,7 +170,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-
+    //TODO: make muti-GPU things be parallel
 
     for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++) {
         cudaSetDevice(GPUnum);

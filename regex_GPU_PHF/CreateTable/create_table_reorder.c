@@ -5,9 +5,9 @@
 
 //pattern_s all_pattern[MAX_STATE];
 //int pattern_num;
-int streamnum = 3;
+//extern int streamnum ;
 //cudaGetDeviceCount(&GPU_S);
-int GPU_N = streamnum * 2;
+int GPU_N ;
 int INITIAL_SIZE = 100000;
 int INITIAL_PFAC_SIZE = 4000000;
 pattern_s* all_pattern_new;
@@ -200,30 +200,32 @@ void read_pattern_ext(char *patternfilename, int* pattern_num, pattern_s all_pat
 *                      pattern length
 *   Returned   : No use (total number of state)
 ****************************************************************************/
-int create_table_reorder(char *patternfilename, int *state_num, int *final_state_num, int ext, int* max_pat_length_arr, int* max_pat_len, int *** PFACs, int** patternIdMaps) {
+int create_table_reorder(char *patternfilename, int *state_num, int *final_state_num, int streamnum, int* max_pat_length_arr, int* max_pat_len, int *** PFACs, int** patternIdMaps) {
     int i, j, x;
     int ch;
     int state;          // to traverse transition table
     int state_count;    // counter for creating new state
-    int initial_state, pattern_num;
+    int initial_state, pattern_num, GPU_S;
     //pattern_s all_pattern[MAX_STATE];
     pattern_s* all_pattern = (pattern_s*)malloc(INITIAL_SIZE*sizeof(pattern_s));    
 
-    // select normal mode or extension mode
-    if (ext == 0)
-        all_pattern = read_pattern(patternfilename, &pattern_num, all_pattern);
-    else
-        read_pattern_ext(patternfilename, &pattern_num, all_pattern);
+
+    all_pattern = read_pattern(patternfilename, &pattern_num, all_pattern);
+
 
     printf("finshed read pattern\n");
     
     printf("pattern_num is %d\n",pattern_num);
-//    cudaGetDeviceCount(&GPU_N);
-
+    cudaGetDeviceCount(&GPU_S);
+    GPU_N = GPU_S * streamnum;
+    printf("GPU num  is %d\n",GPU_S);
+    printf("stream on each GPU is %d\n",streamnum);
+    printf("divide the pattern file into %d parts\n",GPU_N);
     //the number of patterns to feed to GPUs 0 to GPU_N-2
     int k = pattern_num/GPU_N;
     //the number of patterns to ffed to GPU GPU_N-1. (GPU_N-2)*k + l = pattern_num.
     int l = k + pattern_num%GPU_N;
+
 
     //Allocate and initialise memory for the PFACs
     // for (x =0 ; x < GPU_N ; x++){
