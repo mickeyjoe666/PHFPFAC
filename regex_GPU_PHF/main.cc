@@ -35,8 +35,8 @@ void *GPU_TraceTable(void *threadarg);
 ****************************************************************************/
 int main(int argc, char *argv[]) {
     //number of GPUs on the machine
-    int GPU_N = 1 ;
-    //cudaGetDeviceCount(&GPU_N);
+    //int GPU_N = 1 ;
+    cudaGetDeviceCount(&GPU_N);
     printf("have %d GPU can be used same time\n",GPU_N);
     //Array contaning the number of states in the automaton of each GPU
     int* state_num = (int*)malloc(GPU_N*sizeof(int));
@@ -222,7 +222,7 @@ int main(int argc, char *argv[]) {
     int* match_result_aggreg = (int*)malloc(sizeof(int)*(size_t)input_size*(size_t)max_pat_len);
     memset(match_result_aggreg, 0xFF, sizeof(int)*(size_t)input_size*(size_t)max_pat_len);
     for (int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
-	printf("Matches of GPU %d\n", GPUnum);
+//	printf("Matches of GPU %d\n", GPUnum);
         for (i = 0; i < input_size; i++) {
             unsigned int k = (unsigned int)i * (unsigned int)max_pat_len;
             while(match_result_aggreg[k] != -1) k++;
@@ -230,7 +230,7 @@ int main(int argc, char *argv[]) {
                 if(match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j] != -1) {
                     int matched_id = patternIdMaps[GPUnum][match_result[GPUnum][(unsigned int)i*(unsigned int)max_pat_len_arr[GPUnum]+(unsigned int)j]];
                     match_result_aggreg[k++] = matched_id;
-		    printf("At position %d, match pattern %d\n", i, matched_id);
+//		    printf("At position %d, match pattern %d\n", i, matched_id);
                     if(matched_id < -1) printf("negative matched id: %d, GPUnum: %d i: %d j: %d\n", matched_id, GPUnum, i, j);
                 }
                 else
