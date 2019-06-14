@@ -83,7 +83,6 @@ int main(int argc, char *argv[]) {
     struct thread_data thread_data_array[GPU_N];
     clock_t start, finish;
     double  mutiGPU_duration;
-    size_t size;
 
 
 
@@ -179,8 +178,6 @@ int main(int argc, char *argv[]) {
 
 
     //create stream for each GPU
-    size = GPU_S * sizeof(cudaStream_t);
-    stream = (cudaStream_t *)malloc(size);
     cudaStream_t stream[GPU_N];
 
 
@@ -221,15 +218,12 @@ int main(int argc, char *argv[]) {
 
         }
 
-
-
-
     }
 
 
     omp_set_num_threads(GPU_S);
     #pragma omp parallel for
-    for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++) {
+    for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
         unsigned int cpu_thread_id = omp_get_thread_num();
         unsigned int num_cpu_threads = omp_get_num_threads();
         int gpu_id = -1;
@@ -246,6 +240,7 @@ int main(int argc, char *argv[]) {
         }
 
         printf("CPU thread %d (of %d) uses CUDA device %d\n", cpu_thread_id, num_cpu_threads, gpu_id);
+        printf("CPU thread %d (of %d) uses GPUnum %d\n", cpu_thread_id, num_cpu_threads, GPUnum);
 
 //        // record time setting
 //        cudaEvent_t start, stop;
@@ -256,12 +251,12 @@ int main(int argc, char *argv[]) {
 
 //        omp_set_num_threads(streamnum);
 //        #pragma omp parallel for
-        for(int i = 0; i < streamnum; i++){
-            unsigned int stream_thread_id = omp_get_thread_num();
-            int stream_id = GPUnum*streamnum +stream_thread_id;
+//        for(int i = 0; i < streamnum; i++){
+//            unsigned int stream_thread_id = omp_get_thread_num();
+//            int stream_id = GPUnum*streamnum +stream_thread_id;
             printf("stream is %d now \n",i);
-            GPU_TraceTable(thread_data_array[stream_id], stream[stream_id], d_input_string[stream_id], d_r[stream_id], d_hash_table[stream_id], d_match_result[stream_id], d_val_table[stream_id], d_s0Table[stream_id]);
-        }
+            GPU_TraceTable(thread_data_array[GPUnum], stream[GPUnum], d_input_string[GPUnum], d_r[GPUnum], d_hash_table[GPUnum], d_match_result[GPUnum], d_val_table[GPUnum], d_s0Table[GPUnum]);
+//        }
 
 
 
@@ -287,25 +282,11 @@ int main(int argc, char *argv[]) {
             }
             GPU_Free_memory(&(d_input_string[stream_id]), &(d_r[stream_id]), &(d_hash_table[stream_id]), &(d_match_result[stream_id]), &(d_val_table[stream_id]), &(d_s0Table[stream_id]));
 
-            cudaStreamDestroy(stream[i]);
+            cudaStreamDestroy(stream[stream_id]);
         }
     }
 
     printf("/////////////////////////////////////////////\n");
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -359,7 +340,7 @@ int main(int argc, char *argv[]) {
         printf("match_result memory is freed, %d\n",GPUnum);
     }
 
-    char* output_file_name = "GPU_match_result.txt";
+    const char * output_file_name = "GPU_match_result.txt";
     FILE *fpout1 = fopen(output_file_name, "w");
     if (fpout1 == NULL) {
         perror("Open output file failed.\n");
