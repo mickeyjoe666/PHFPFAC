@@ -4,7 +4,9 @@
 #include <cuda_runtime.h>
 #include "CreateTable/create_PFAC_table_reorder.c"
 #include "PHF/phf.c"
+#include <omp.h>
 #include <time.h>
+
 
 //int num_output[MAX_STATE];            // num of matched pattern for each state
 //int *outputs[MAX_STATE];              // list of matched pattern for each state
@@ -72,7 +74,7 @@ int main(int argc, char *argv[]) {
         HT[GPUnum] = (int*)malloc(HASHTABLE_MAX*sizeof(int));
         val[GPUnum] = (int*)malloc(HASHTABLE_MAX*sizeof(int));
     }
-    int width; 
+    int width;
     unsigned char *input_string;
     int input_size;
     unsigned int** match_result = (unsigned int**)malloc(GPU_N*sizeof(unsigned int*));
@@ -91,7 +93,7 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
 
-   
+
     // read pattern file and create PFAC table
     unsigned char *d_input_string[streamnum];
     int *d_r[streamnum];
@@ -173,21 +175,36 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    //TODO: make muti-GPU things be parallel
     start = clock();
 
+    //TODO: make muti-GPU things be parallel
+    omp_set_num_threads(GPU_S);
+#pragma omp parallel for
+
     for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++) {
-        cudaSetDevice(GPUnum);
-        if ( cudaSetDevice(GPUnum) != cudaSuccess ) {
+
+        unsigned int cpu_thread_id = omp_get_thread_num();
+        unsigned int num_cpu_threads = omp_get_num_threads();
+        int gpu_id = -1;
+
+        cudaSetDevice(cpu_thread_id%GPU_S);
+        if ( cudaSetDevice(cpu_thread_id%GPU_S) != cudaSuccess ) {
             fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
             exit(1);
         }
-        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402
+        cudaGetDevice(&gpu_id);
+        if ( cudaGetDevice(&gpu_id) != cudaSuccess ) {
+            fprintf(stderr, "Get CUDA device %d error\n", GPUnum);
+            exit(1);
+        }
+
+        printf("CPU thread %d (of %d) uses CUDA device %d\n", cpu_thread_id, num_cpu_threads, gpu_id);
+        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402::q
         //create stream for each GPU
         cudaStream_t stream[streamnum];
 
         for(int i = 0; i < streamnum; i++) {
-           cudaStreamCreate(&stream[i]);
+            cudaStreamCreate(&stream[i]);
         }
 
         for(int i = 0; i < streamnum; i++) {
@@ -206,12 +223,12 @@ int main(int argc, char *argv[]) {
             thread_data_array[stream_id].HT = HT[stream_id];
             thread_data_array[stream_id].val = val[stream_id];
 
-//            status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
-//            printf("using the %d GPU\n", GPUnum);
-//            if (cudaSuccess != status) {
-//                fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
-//                exit(1);
-//            }
+            //            status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
+            //            printf("using the %d GPU\n", GPUnum);
+            //            if (cudaSuccess != status) {
+            //                fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
+            //                exit(1);
+            //            }
         }
 
 
@@ -235,9 +252,9 @@ int main(int argc, char *argv[]) {
             GPU_TraceTable(thread_data_array[stream_id], stream[i], d_input_string[i], d_r[i], d_hash_table[i], d_match_result[i], d_val_table[i], d_s0Table[i]);
         }
 
-//        for(int i = 0; i < streamnum; i++){
-//            cudaStreamSynchronize(stream[i]);
-//        }
+        //        for(int i = 0; i < streamnum; i++){
+        //            cudaStreamSynchronize(stream[i]);
+        //        }
 
         // record time setting
         cudaEventRecord(stop, 0);
@@ -256,10 +273,11 @@ int main(int argc, char *argv[]) {
         printf("/////////////////////////////////////////////\n");
 
     }
-
     finish = clock();
     mutiGPU_duration = (double)(finish - start) / CLOCKS_PER_SEC;
     printf( "Time for  %d GPU is %f seconds\n", GPU_S, mutiGPU_duration );
+
+
 
 
     //TODO: synchronise threads that did the matching once the above TODO is done
