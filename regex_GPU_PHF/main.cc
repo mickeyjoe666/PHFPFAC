@@ -80,10 +80,10 @@ int main(int argc, char *argv[]) {
     unsigned int** match_result = (unsigned int**)malloc(GPU_N*sizeof(unsigned int*));
     int i;
     int j;
-    int x = 0;
     struct thread_data thread_data_array[GPU_N];
     clock_t start, finish;
     double  mutiGPU_duration;
+    size_t size;
 
 
 
@@ -95,12 +95,12 @@ int main(int argc, char *argv[]) {
 
 
     // read pattern file and create PFAC table
-    unsigned char *d_input_string[streamnum];
-    int *d_r[streamnum];
-    int *d_hash_table[streamnum];
-    unsigned int *d_match_result[streamnum];
-    int *d_val_table[streamnum];//add by qiao 0324
-    int *d_s0Table[streamnum];
+    unsigned char *d_input_string[GPU_N];
+    int *d_r[GPU_N];
+    int *d_hash_table[GPU_N];
+    unsigned int *d_match_result[GPU_N];
+    int *d_val_table[GPU_N];//add by qiao 0324
+    int *d_s0Table[GPU_N];
 
 //    printf("still ok before entry create_PFAC_table_reorder\n");
     create_PFAC_table_reorder(argv[1], state_num, final_state_num, streamnum, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
@@ -177,37 +177,27 @@ int main(int argc, char *argv[]) {
 
     start = clock();
 
-    //TODO: make muti-GPU things be parallel
-    omp_set_num_threads(GPU_S);
-#pragma omp parallel for
+
+    //create stream for each GPU
+    size = GPU_S * sizeof(cudaStream_t);
+    stream = (cudaStream_t *)malloc(size);
+    cudaStream_t stream[GPU_N];
+
+
+//    TODO: make muti-GPU things be parallel
+
 
     for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++) {
 
-        unsigned int cpu_thread_id = omp_get_thread_num();
-        unsigned int num_cpu_threads = omp_get_num_threads();
-        int gpu_id = -1;
-
-        cudaSetDevice(cpu_thread_id%GPU_S);
-        if ( cudaSetDevice(cpu_thread_id%GPU_S) != cudaSuccess ) {
+        cudaSetDevice(GPUnum);
+        if (cudaSetDevice(GPUnum) != cudaSuccess) {
             fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
             exit(1);
         }
-        cudaGetDevice(&gpu_id);
-        if ( cudaGetDevice(&gpu_id) != cudaSuccess ) {
-            fprintf(stderr, "Get CUDA device %d error\n", GPUnum);
-            exit(1);
-        }
+        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128 * 1024 * 1024);//add by qiao 20190402
 
-        printf("CPU thread %d (of %d) uses CUDA device %d\n", cpu_thread_id, num_cpu_threads, gpu_id);
-        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128*1024*1024);//add by qiao 20190402::q
-        //create stream for each GPU
-        cudaStream_t stream[streamnum];
+        for (int i = 0; i < streamnum; i++) {
 
-        for(int i = 0; i < streamnum; i++) {
-            cudaStreamCreate(&stream[i]);
-        }
-
-        for(int i = 0; i < streamnum; i++) {
             int stream_id = GPUnum*streamnum +i;
 
             thread_data_array[stream_id].input_string = input_string;
@@ -223,56 +213,102 @@ int main(int argc, char *argv[]) {
             thread_data_array[stream_id].HT = HT[stream_id];
             thread_data_array[stream_id].val = val[stream_id];
 
-            //            status = cudaHostAlloc((void **) &(match_result[stream_id]), sizeof(unsigned int)*input_size*max_pat_len_arr[stream_id], cudaHostAllocPortable);
-            //            printf("using the %d GPU\n", GPUnum);
-            //            if (cudaSuccess != status) {
-            //                fprintf(stderr, "cudaMallocHost match_result error: %s\n", cudaGetErrorString(status));
-            //                exit(1);
-            //            }
+            GPU_Malloc_Memory(thread_data_array[stream_id], &(d_input_string[stream_id]), &(d_r[stream_id]),
+                              &(d_hash_table[stream_id]), &(d_match_result[stream_id]), &(d_val_table[stream_id]),
+                              &(d_s0Table[stream_id]));
+
+            cudaStreamCreate(&stream[stream_id]);
+
         }
 
 
 
-        for(int i = 0; i < streamnum; i++){
-            int stream_id = GPUnum*streamnum +i;
-            GPU_Malloc_Memory(thread_data_array[stream_id], &(d_input_string[i]), &(d_r[i]), &(d_hash_table[i]), &(d_match_result[i]), &(d_val_table[i]), &(d_s0Table[i]));
-        }
-
-        // record time setting
-        cudaEvent_t start, stop;
-        float time;
-        cudaEventCreate(&start);
-        cudaEventCreate(&stop);
-        cudaEventRecord(start, 0);
-
-
-        for(int i = 0; i < streamnum; i++){
-            int stream_id = GPUnum*streamnum +i;
-            printf("stream is %d now \n",stream_id);
-            GPU_TraceTable(thread_data_array[stream_id], stream[i], d_input_string[i], d_r[i], d_hash_table[i], d_match_result[i], d_val_table[i], d_s0Table[i]);
-        }
-
-        //        for(int i = 0; i < streamnum; i++){
-        //            cudaStreamSynchronize(stream[i]);
-        //        }
-
-        // record time setting
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&time, start, stop);
-
-        printf("The GPU elapsed time is %f ms\n", time);
-
-        for(int i = 0; i < streamnum; i++){
-            GPU_Free_memory(&(d_input_string[i]), &(d_r[i]), &(d_hash_table[i]), &(d_match_result[i]), &(d_val_table[i]), &(d_s0Table[i]));
-        }
-
-        for(int i = 0; i < streamnum; i++){
-            cudaStreamDestroy(stream[i]);
-        }
-        printf("/////////////////////////////////////////////\n");
 
     }
+
+
+    omp_set_num_threads(GPU_S);
+    #pragma omp parallel for
+    for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++) {
+        unsigned int cpu_thread_id = omp_get_thread_num();
+        unsigned int num_cpu_threads = omp_get_num_threads();
+        int gpu_id = -1;
+
+        cudaSetDevice(cpu_thread_id%GPU_S);
+        if ( cudaSetDevice(cpu_thread_id%GPU_S) != cudaSuccess ) {
+            fprintf(stderr, "Set CUDA device %d error\n", cpu_thread_id%GPU_S);
+            exit(1);
+        }
+        cudaGetDevice(&gpu_id);
+        if ( cudaGetDevice(&gpu_id) != cudaSuccess ) {
+            fprintf(stderr, "Get CUDA device %d error\n", gpu_id);
+            exit(1);
+        }
+
+        printf("CPU thread %d (of %d) uses CUDA device %d\n", cpu_thread_id, num_cpu_threads, gpu_id);
+
+//        // record time setting
+//        cudaEvent_t start, stop;
+//        float time;
+//        cudaEventCreate(&start);
+//        cudaEventCreate(&stop);
+//        cudaEventRecord(start, 0);
+
+//        omp_set_num_threads(streamnum);
+//        #pragma omp parallel for
+        for(int i = 0; i < streamnum; i++){
+            unsigned int stream_thread_id = omp_get_thread_num();
+            int stream_id = GPUnum*streamnum +stream_thread_id;
+            printf("stream is %d now \n",i);
+            GPU_TraceTable(thread_data_array[stream_id], stream[stream_id], d_input_string[stream_id], d_r[stream_id], d_hash_table[stream_id], d_match_result[stream_id], d_val_table[stream_id], d_s0Table[stream_id]);
+        }
+
+
+
+//        // record time setting
+//        cudaEventRecord(stop, 0);
+//        cudaEventSynchronize(stop);
+//        cudaEventElapsedTime(&time, start, stop);
+//
+//        printf("The GPU elapsed time is %f ms\n", time);
+    }
+
+
+
+
+
+    for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++) {
+        for(int i = 0; i < streamnum; i++){
+            int stream_id = GPUnum * streamnum + i;
+            cudaSetDevice(GPUnum);
+            if (cudaSetDevice(GPUnum) != cudaSuccess) {
+                fprintf(stderr, "Set CUDA device %d error\n", GPUnum);
+                exit(1);
+            }
+            GPU_Free_memory(&(d_input_string[stream_id]), &(d_r[stream_id]), &(d_hash_table[stream_id]), &(d_match_result[stream_id]), &(d_val_table[stream_id]), &(d_s0Table[stream_id]));
+
+            cudaStreamDestroy(stream[i]);
+        }
+    }
+
+    printf("/////////////////////////////////////////////\n");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     finish = clock();
     mutiGPU_duration = (double)(finish - start) / CLOCKS_PER_SEC;
     printf( "Time for  %d GPU is %f seconds\n", GPU_S, mutiGPU_duration );

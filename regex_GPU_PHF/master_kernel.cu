@@ -372,7 +372,7 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
-//    cudaStreamSynchronize(stream);
+    cudaStreamSynchronize(stream);
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
