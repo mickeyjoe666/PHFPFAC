@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 #include "CreateTable/create_PFAC_table_reorder.c"
 #include "PHF/phf.c"
+#include <time.h>
 
 //int num_output[MAX_STATE];            // num of matched pattern for each state
 //int *outputs[MAX_STATE];              // list of matched pattern for each state
@@ -79,6 +80,8 @@ int main(int argc, char *argv[]) {
     int j;
     int x = 0;
     struct thread_data thread_data_array[GPU_N];
+    clock_t start, finish;
+    double  mutiGPU_duration;
 
 
 
@@ -171,6 +174,7 @@ int main(int argc, char *argv[]) {
     }
 
     //TODO: make muti-GPU things be parallel
+    start = clock();
 
     for(int GPUnum = 0; GPUnum < GPU_S; GPUnum++) {
         cudaSetDevice(GPUnum);
@@ -252,6 +256,10 @@ int main(int argc, char *argv[]) {
         printf("/////////////////////////////////////////////\n");
 
     }
+
+    finish = clock();
+    mutiGPU_duration = (double)(finish - start) / CLOCKS_PER_SEC;
+    printf( "Time for  %d GPU is %f seconds\n", GPU_S, mutiGPU_duration );
 
 
     //TODO: synchronise threads that did the matching once the above TODO is done

@@ -1,4 +1,4 @@
-NVCC30   = /usr/local/cuda/bin/nvcc -g
+NVCC30   = /usr/local/cuda/bin/nvcc -Xcompiler -fopenmp
 INC30    = -I/usr/local/cuda/include
 LIB30    = -L/usr/local/cuda/lib64
 ARGS13   = -arch=sm_13 -Xcudafe=-w -lrt
