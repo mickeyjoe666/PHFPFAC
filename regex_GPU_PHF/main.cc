@@ -132,7 +132,12 @@ int main(int argc, char *argv[]) {
 
     // create PHF hash table from PFAC table
     width = atoi(argv[3]);
+
+    omp_set_num_threads(GPU_N);
+    #pragma omp parallel for
     for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++){
+        unsigned int hash_thread_id = omp_get_thread_num();
+        printf("creating the %dth hash table\n", hash_thread_id);
         HTSize[GPUnum] = FFDM(PFACs[GPUnum], state_num[GPUnum], width, r[GPUnum], HT[GPUnum],val[GPUnum]);
     }
 
