@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
     int streamnum;
     streamnum = atoi(argv[2]);
     int GPU_N;
-    cudaGetDeviceCount(&GPU_N);
+//    cudaGetDeviceCount(&GPU_N);
     int stream_N = streamnum * GPU_N;
     //Array contaning the number of states in the automaton of each GPU
     int* state_num = (int*)malloc(stream_N*sizeof(int));
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
     
     // check command line arguments
     if (argc != 5) {
-        fprintf(stderr, "usage: %s <pattern file name> <streamnum> <PHF width> <input file name>\n", argv[0]);
+        fprintf(stderr, "usage: %s <pattern file name> <streamnum> <PHF width> <input file name> <GPUnum>\n", argv[0]);
         exit(-1);
     }
 
@@ -97,10 +97,10 @@ int main(int argc, char *argv[]) {
     unsigned int *d_match_result[stream_N];
     int *d_val_table[stream_N];//add by qiao 0324
     int *d_s0Table[stream_N];
-
+    GPU_N = atoi(argv[5]);
     //create PFAC tables
     start_PFAC = clock();
-    create_PFAC_table_reorder(argv[1], state_num, final_state_num, streamnum, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
+    create_PFAC_table_reorder(argv[1], state_num, final_state_num, streamnum, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps, GPU_N);
     finish_PFAC = clock();
     PFAC_duration = (double)(finish_PFAC - start_PFAC) / CLOCKS_PER_SEC;
 

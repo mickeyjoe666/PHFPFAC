@@ -7,7 +7,8 @@
 //int pattern_num;
 //extern int streamnum ;
 //cudaGetDeviceCount(&GPU_S);
-int GPU_N ;
+int GPU_N;
+int stream_N ;
 int INITIAL_SIZE = 100000;
 int INITIAL_PFAC_SIZE = 4000000;
 pattern_s* all_pattern_new;
@@ -200,12 +201,12 @@ void read_pattern_ext(char *patternfilename, int* pattern_num, pattern_s all_pat
 *                      pattern length
 *   Returned   : No use (total number of state)
 ****************************************************************************/
-int create_table_reorder(char *patternfilename, int *state_num, int *final_state_num, int streamnum, int* max_pat_length_arr, int* max_pat_len, int *** PFACs, int** patternIdMaps) {
+int create_table_reorder(char *patternfilename, int *state_num, int *final_state_num, int streamnum, int* max_pat_length_arr, int* max_pat_len, int *** PFACs, int** patternIdMaps, int GPU_N) {
     int i, j, x;
     int ch;
     int state;          // to traverse transition table
     int state_count;    // counter for creating new state
-    int initial_state, pattern_num, GPU_S;
+    int initial_state, pattern_num;
     //pattern_s all_pattern[MAX_STATE];
     pattern_s* all_pattern = (pattern_s*)malloc(INITIAL_SIZE*sizeof(pattern_s));    
 
@@ -214,21 +215,21 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
 
 
     printf("finshed read pattern\n");
-    
     printf("pattern_num is %d\n",pattern_num);
-    cudaGetDeviceCount(&GPU_S);
-    GPU_N = GPU_S * streamnum;
-    printf("GPU num  is %d\n",GPU_S);
+
+//    cudaGetDeviceCount(&GPU_N);
+    stream_N = GPU_N * streamnum;
+    printf("GPU num  is %d\n",GPU_N);
     printf("stream on each GPU is %d\n",streamnum);
-    printf("divide the pattern file into %d parts\n",GPU_N);
-    //the number of patterns to feed to GPUs 0 to GPU_N-2
-    int k = pattern_num/GPU_N;
-    //the number of patterns to ffed to GPU GPU_N-1. (GPU_N-2)*k + l = pattern_num.
-    int l = k + pattern_num%GPU_N;
+    printf("divide the pattern file into %d parts\n",stream_N);
+    //the number of patterns to feed to GPUs 0 to stream_N-2
+    int k = pattern_num/stream_N;
+    //the number of patterns to ffed to GPU stream_N-1. (stream_N-2)*k + l = pattern_num.
+    int l = k + pattern_num%stream_N;
 
 
     //Allocate and initialise memory for the PFACs
-    // for (x =0 ; x < GPU_N ; x++){
+    // for (x =0 ; x < stream_N ; x++){
     //     PFACs[x] = (int**)malloc(INITIAL_PFAC_SIZE*sizeof(int*));
     //     for (i = 0; i < INITIAL_PFAC_SIZE; i++) {
     //         PFACs[x][i] =(int*) malloc(CHAR_SET*sizeof(int));
@@ -238,14 +239,14 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     //     }
     // }
 
-    for (x =0 ; x < GPU_N ; x++){
+    for (x =0 ; x < stream_N ; x++){
         PFACs[x] = (int**)malloc(INITIAL_PFAC_SIZE*sizeof(int*));
     }
    
 //    //Array of array of patterns. Each divided_pattenrs[i] corresponds to the patterns of each GPU_i
     pattern_s** divided_patterns = divide_patterns(all_pattern, pattern_num);
 
-    for (i = 0;i< GPU_N-1; i++){
+    for (i = 0;i< stream_N-1; i++){
          patternIdMaps[i] = (int*)malloc(k*sizeof(int));
          PFACs[i] = patternsToPFAC(divided_patterns[i], k, PFACs[i], &(max_pat_length_arr[i]), &(state_num[i]), patternIdMaps[i]);
          if (max_pat_length_arr[i] > *max_pat_len) *max_pat_len = max_pat_length_arr[i];
@@ -262,12 +263,12 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
 
 pattern_s** divide_patterns(pattern_s all_pattern[], int pattern_num) {
     pattern_s** result;
-    result = (pattern_s**)malloc(GPU_N * sizeof(pattern_s*));
+    result = (pattern_s**)malloc(stream_N * sizeof(pattern_s*));
     int i, j, k, l;
-    k = pattern_num/GPU_N;
-    l = k + pattern_num%GPU_N;
+    k = pattern_num/stream_N;
+    l = k + pattern_num%stream_N;
 
-    for (i = 0; i <GPU_N-1; i++){
+    for (i = 0; i <stream_N-1; i++){
         result[i] = (pattern_s*)malloc(k* sizeof(pattern_s));
         for (j = 0; j <k; j++){
             //all_pattern is indexed from 1.
