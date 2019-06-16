@@ -160,7 +160,6 @@ __global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int
             if(thread_offset + i_offset + (unsigned int)j < 0) printf("Overflow??\n");
             if(thread_offset + i_offset + (unsigned int)j < d_match_size) {
                 d_match_result[thread_offset + i_offset + (unsigned int)j] = match[i][j];
-//                printf("match result is %d\n", d_match_result[thread_offset + i_offset + (unsigned int)j]);
             }
             if(int(match[i][j])<-1) printf("???\n");
         }
@@ -291,8 +290,8 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         dimGrid.x = 32768 ;
         dimGrid.y = (num_blocks % 32768) ? (p + 1) : p ;
     }
-    printf("grid=(%d, %d), num_blocks=%d\n", dimGrid.x, dimGrid.y, num_blocks);
-    printf("input_size = %d char\n", input_size );
+//    printf("grid=(%d, %d), num_blocks=%d\n", dimGrid.x, dimGrid.y, num_blocks);
+//    printf("input_size = %d char\n", input_size );
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
@@ -300,12 +299,6 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
-    // record time setting
-    cudaEvent_t start, stop;
-    float time;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start, 0);
 
     cudaMemcpyAsync(d_input_string, input_string, input_size, cudaMemcpyHostToDevice, stream);
     cuda_err = cudaGetLastError() ;
@@ -359,13 +352,6 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
 
     cudaMemcpyAsync(match_result, d_match_result, sizeof(int)*max_pat_len*input_size, cudaMemcpyDeviceToHost, stream);
 
-    // record time setting
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time, start, stop);
-
-    printf("The elapsed time is %f ms\n", time);
-
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda memcpy error6 = %s\n", cudaGetErrorString (cuda_err));
@@ -395,7 +381,7 @@ int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_tabl
         printf("cuda free memory error1 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-    printf("cudaFree(d_input_string); done\n");
+//    printf("cudaFree(d_input_string); done\n");
 
 
     cudaFree(*d_r);
@@ -405,7 +391,7 @@ int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_tabl
         printf("cuda free memory error2 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-    printf("cudaFree(d_r); done\n");
+//    printf("cudaFree(d_r); done\n");
 
 
     //cudaUnbindTexture(tex_HT);
@@ -415,7 +401,7 @@ int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_tabl
         printf("cuda free memory error3 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-    printf("cudaFree(d_hash_table); done\n");
+//    printf("cudaFree(d_hash_table); done\n");
 
 
     cudaFree(*d_val_table);//add by qiao0324
@@ -424,7 +410,7 @@ int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_tabl
         printf("cuda free memory error4 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-    printf("cudaFree(d_val_table); done\n");
+//    printf("cudaFree(d_val_table); done\n");
 
 
     cudaFree(*d_match_result);
@@ -433,11 +419,11 @@ int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_tabl
         printf("cuda free memory error5 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-    printf("cudaFree(d_match_result); done\n");
+//    printf("cudaFree(d_match_result); done\n");
 
 
     cudaFree(*d_s0Table);
-    printf("cudaFree(d_s0Table); done\n");
+//    printf("cudaFree(d_s0Table); done\n");
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
