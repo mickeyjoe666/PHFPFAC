@@ -207,11 +207,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     //pattern_s all_pattern[MAX_STATE];
     pattern_s* all_pattern = (pattern_s*)malloc(INITIAL_SIZE*sizeof(pattern_s));
 
-    // select normal mode or extension mode
-    if (ext == 0)
-        all_pattern = read_pattern(patternfilename, &pattern_num, all_pattern);
-    else
-        read_pattern_ext(patternfilename, &pattern_num, all_pattern);
+    all_pattern = read_pattern(patternfilename, &pattern_num, all_pattern);
 
     printf("finshed read pattern\n");
 
@@ -224,16 +220,9 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     //the number of patterns to ffed to GPU GPU_N-1. (GPU_N-2)*k + l = pattern_num.
     int l = k + pattern_num%GPU_N;
 
-    //Allocate and initialise memory for the PFACs
-    // for (x =0 ; x < GPU_N ; x++){
-    //     PFACs[x] = (int**)malloc(INITIAL_PFAC_SIZE*sizeof(int*));
-    //     for (i = 0; i < INITIAL_PFAC_SIZE; i++) {
-    //         PFACs[x][i] =(int*) malloc(CHAR_SET*sizeof(int));
-    //         for (j = 0; j < CHAR_SET; j++) {
-    //             (PFACs[x])[i][j] = -1;
-    //         }
-    //     }
-    // }
+    printf("GPU num  is %d\n",GPU_S);
+    printf("stream on each GPU is %d\n",streamnum);
+    printf("divide the pattern file into %d parts\n",GPU_N);
 
     for (x =0 ; x < GPU_N ; x++){
         PFACs[x] = (int**)malloc(INITIAL_PFAC_SIZE*sizeof(int*));
