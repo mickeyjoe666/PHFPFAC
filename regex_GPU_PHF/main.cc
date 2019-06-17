@@ -5,7 +5,6 @@
 #include "CreateTable/create_PFAC_table_reorder.c"
 #include "PHF/phf.c"
 #include <omp.h>
-#include <time.h>
 
 
 //int num_output[MAX_STATE];            // num of matched pattern for each state
@@ -81,7 +80,7 @@ int main(int argc, char *argv[]) {
     int i;
     int j;
     struct thread_data thread_data_array[stream_N];
-    clock_t start_PFAC, finish_PFAC, start_Hashtable, finish_Hashtable, start_multiGPU, finish_multiGPU, start_mallocGPU, finish_mallocGPU;
+    double start_PFAC, finish_PFAC, start_Hashtable, finish_Hashtable, start_multiGPU, finish_multiGPU, start_mallocGPU, finish_mallocGPU;
     double  PFAC_duration, Hashtable_duration,mallocGPU_duration, mutiGPU_duration;
     
     // check command line arguments
@@ -99,10 +98,10 @@ int main(int argc, char *argv[]) {
     int *d_s0Table[stream_N];
 
     //create PFAC tables
-    start_PFAC = clock();
+    start_PFAC = omp_get_wtime();
     create_PFAC_table_reorder(argv[1], state_num, final_state_num, streamnum, max_pat_len_arr, &max_pat_len, PFACs, patternIdMaps);
-    finish_PFAC = clock();
-    PFAC_duration = (double)(finish_PFAC - start_PFAC) / CLOCKS_PER_SEC;
+    finish_PFAC = omp_get_wtime();
+    PFAC_duration = (double)(finish_PFAC - start_PFAC) ;
 
 
     for(int GPUnum = 0; GPUnum<stream_N; GPUnum++){
@@ -113,15 +112,14 @@ int main(int argc, char *argv[]) {
 
     // create PHF hash table from PFAC table
     width = atoi(argv[3]);
-    start_Hashtable = clock();
+    start_Hashtable = omp_get_wtime();
     omp_set_num_threads(stream_N);
     #pragma omp parallel for
     for(int GPUnum = 0; GPUnum < stream_N; GPUnum++){
-        unsigned int hash_thread_id = omp_get_thread_num();
         HTSize[GPUnum] = FFDM(PFACs[GPUnum], state_num[GPUnum], width, r[GPUnum], HT[GPUnum],val[GPUnum]);
     }
-    finish_Hashtable = clock();
-    Hashtable_duration = (double)(finish_Hashtable - start_Hashtable) / CLOCKS_PER_SEC;
+    finish_Hashtable = omp_get_wtime();
+    Hashtable_duration = (double)(finish_Hashtable - start_Hashtable);
 
     // read input data
     FILE *fpin = fopen(argv[4], "rb");
@@ -161,7 +159,7 @@ int main(int argc, char *argv[]) {
     }
     //create stream for each GPU
     cudaStream_t stream[stream_N];
-    start_mallocGPU = clock();
+    start_mallocGPU = omp_get_wtime();
     for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
         cudaSetDevice(GPUnum);
         if (cudaSetDevice(GPUnum) != cudaSuccess) {
@@ -192,10 +190,10 @@ int main(int argc, char *argv[]) {
         }
 
     }
-    finish_mallocGPU = clock();
-    mallocGPU_duration = (double)(finish_mallocGPU - start_mallocGPU) / CLOCKS_PER_SEC;
+    finish_mallocGPU = omp_get_wtime();
+    mallocGPU_duration = (double)(finish_mallocGPU - start_mallocGPU) ;
 
-    start_multiGPU = clock();
+    start_multiGPU = omp_get_wtime();
     //start multiGPU thread
     omp_set_num_threads(stream_N);
     #pragma omp parallel for
@@ -214,8 +212,8 @@ int main(int argc, char *argv[]) {
             GPU_TraceTable(thread_data_array[GPUnum], stream[GPUnum], d_input_string[GPUnum], d_r[GPUnum], d_hash_table[GPUnum], d_match_result[GPUnum], d_val_table[GPUnum], d_s0Table[GPUnum]);
 
     }
-    finish_multiGPU = clock();
-    mutiGPU_duration = (double)(finish_multiGPU - start_multiGPU) / CLOCKS_PER_SEC;
+    finish_multiGPU = omp_get_wtime();
+    mutiGPU_duration = (double)(finish_multiGPU - start_multiGPU) ;
 
 
 
