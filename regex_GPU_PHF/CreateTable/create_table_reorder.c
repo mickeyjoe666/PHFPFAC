@@ -86,11 +86,11 @@ pattern_s* read_pattern(char *patternfilename, int* pattern_num, pattern_s all_p
         //printf("pattern_num is %d\n",*pattern_num);
         //printf("INITIAL_SIZE is %d\n",INITIAL_SIZE);
         if (*pattern_num >= INITIAL_SIZE){
-//            printf("have reach a limit\n");
+            printf("have reach a limit\n");
             all_pattern_new = (pattern_s*)realloc (all_pattern , INITIAL_SIZE*2*sizeof(pattern_s));
 
             if(all_pattern_new != NULL) {
-//                printf("copy to new space\n");
+                printf("copy to new space\n");
                 all_pattern = all_pattern_new;
                 INITIAL_SIZE = INITIAL_SIZE*2;
             }
@@ -245,7 +245,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     if (max_pat_length_arr[i] > *max_pat_len) *max_pat_len = max_pat_length_arr[i];
     final_state_num[i] = l;
 //    printf("finsh write PFAC for the last  GPU\n");
-//    printf("There are %d states\n", *state_num);
+    printf("There are %d states\n", *state_num);
 
 }
 
@@ -301,17 +301,17 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
         }
     }
 
-//    printf("start initialize PFAC table\n");
+    printf("start initialize PFAC table\n");
     for ( x = 0; x < PFAC_size; x++) {
         PFAC[x] = (int*)malloc(CHAR_SET*sizeof(int));
         if(PFAC[x] == NULL) {printf("Failed to allocate memory for PFAC\n"); exit(1);}
         // printf("x is %d\n",x);
         memset(PFAC[x], 0xFF, CHAR_SET * sizeof(int));
     }
-//    printf("finshed initialize PFAC table\n");
+    printf("finshed initialize PFAC table\n");
     // printf("x is %d\n",x);
 
-//    printf("Treating %d patterns\n", pattern_num);
+    printf("Treating %d patterns\n", pattern_num);
     for (int i = 0; i < pattern_num; i++) {
         // load current pattern
         cur_pat = patterns[i];
@@ -336,11 +336,11 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
                 // printf("state_count is %dnow\n",state_count);
                 // printf("PFAC_size is %dnow\n",PFAC_size);
                 if(state_count >= PFAC_size){
-//                    printf("have reach a limit\n");
+                    printf("have reach a limit\n");
                     PFAC_new = (int**)realloc (PFAC , (size_t)PFAC_size*(size_t)2*sizeof(int*));
 
                     if(PFAC_new != NULL) {
-//                        printf("Reallocated PFAC successfully\n");
+                        printf("Reallocated PFAC successfully\n");
                         PFAC = PFAC_new;
                         for (int x = PFAC_size; x < PFAC_size*2; x++) {
                             PFAC[x] = (int*)malloc(CHAR_SET*sizeof(int));
@@ -377,7 +377,7 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
     }
 
     *state_num = state_count;
-//    printf("Max pat len = %d\n", *max_pat_length);
+    printf("Max pat len = %d\n", *max_pat_length);
 
     return PFAC;
 }
