@@ -268,7 +268,10 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
     int MaxRow;
     MaxRow = (state_num*CHAR_SET) / width + 1;
     cudaError_t cuda_err;
-
+    struct timespec transInTime_begin, transInTime_end;
+    double transInTime;
+    struct timespec transOutTime_begin, transOutTime_end;
+    double transOutTime;
 
 
 
@@ -299,7 +302,7 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
-
+    clock_gettime( CLOCK_REALTIME, &transInTime_begin);
     cudaMemcpyAsync(d_input_string, input_string, input_size, cudaMemcpyHostToDevice, stream);
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
@@ -325,22 +328,45 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
     cudaMemcpyAsync(d_val_table, val, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);//add by qiao 0324
+    transInTime = (transInTime_end.tv_sec - transInTime_begin.tv_sec) * 1000.0;
+    transInTime += (transInTime_end.tv_nsec - transInTime_begin.tv_nsec) / 1000000.0;
+    printf("   H2D transfer time: %lf ms\n", transInTime);
+    printf("   H2D throughput: %lf GBps\n", (input_size+MaxRow*sizeof(int)+HTSize*sizeof(int)+CHAR_SET*sizeof(int))
+                                            /(transInTime*1000000));
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda memcpy error5 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
+    clock_gettime( CLOCK_REALTIME, &transInTime_end);
 
-        // count bit of width (ex: if width is 256, width_bit is 8)
+    // count bit of width (ex: if width is 256, width_bit is 8)
     int width_bit;
     for (width_bit = 0; (width >> width_bit)!=1; width_bit++);
 
-//    cudaStreamSynchronize(stream);
+
+    // record time setting
+    cudaEvent_t start, stop;
+    float time;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
 
     TraceTable_kernel <<< dimGrid, dimBlock, 0, stream >>> (d_match_result, (int *)d_input_string, input_size, HTSize,
         width_bit, final_state_num, MaxRow, num_blocks, boundary, d_s0Table, d_r, d_hash_table,
         d_val_table, max_pat_len);
+
+    // record time setting
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+
+    printf("   MASTER: The elapsed time is %f ms\n", time);
+    printf("   MASTER: The throughput is %f Gbps\n",(float)(input_size)/(time*1000000)*8 );
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
@@ -348,9 +374,17 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
-//    cudaStreamSynchronize(stream);
-
+    clock_gettime( CLOCK_REALTIME, &transOutTime_begin);
     cudaMemcpyAsync(match_result, d_match_result, sizeof(int)*max_pat_len*input_size, cudaMemcpyDeviceToHost, stream);
+    clock_gettime( CLOCK_REALTIME, &transOutTime_end);
+    transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
+    transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
+    printf("   D2H transfer time: %lf ms\n", transOutTime);
+    printf("   D2H throughput: %lf GBps\n", (input_size*sizeof(short))/(transOutTime*1000000));
+
+    printf("   Total elapsed time: %lf ms\n", transInTime+transOutTime+time);
+    printf("   Total throughput: %lf Gbps\n", (double)input_size/((transInTime+transOutTime+time)*1000000)*8);
+
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
