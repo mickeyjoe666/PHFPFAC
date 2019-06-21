@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
     struct thread_data thread_data_array[stream_N];
     double start_PFAC, finish_PFAC, start_Hashtable, finish_Hashtable, start_multiGPU, finish_multiGPU, start_mallocGPU, finish_mallocGPU;
     double  PFAC_duration, Hashtable_duration,mallocGPU_duration, mutiGPU_duration;
-
+    
     // check command line arguments
     if (argc != 5) {
         fprintf(stderr, "usage: %s <pattern file name> <streamnum> <PHF width> <input file name>\n", argv[0]);
@@ -103,16 +103,8 @@ int main(int argc, char *argv[]) {
     finish_PFAC = omp_get_wtime();
     PFAC_duration = (double)(finish_PFAC - start_PFAC) ;
 
-    for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
-        for (int i = 0; i < streamnum; i++) {
-            int stream_id = GPUnum*streamnum +i;
-            thread_data_array[stream_id].s0Table = PFACs[stream_id][(final_state_num[stream_id]+1)];
-        }
-    }
 
-
-
-    for(int GPUnum = 0; GPUnum < stream_N; GPUnum++){
+    for(int GPUnum = 0; GPUnum<stream_N; GPUnum++){
         printf("state num on GPU %d : %d\n", GPUnum, state_num[GPUnum]);
         printf("final state num on GPU %d : %d\n", GPUnum, final_state_num[GPUnum]);
         printf("max pattern length on GPU %d : %d\n", GPUnum, max_pat_len_arr[GPUnum]);
@@ -125,21 +117,9 @@ int main(int argc, char *argv[]) {
     #pragma omp parallel for
     for(int GPUnum = 0; GPUnum < stream_N; GPUnum++){
         HTSize[GPUnum] = FFDM(PFACs[GPUnum], state_num[GPUnum], width, r[GPUnum], HT[GPUnum],val[GPUnum]);
-
     }
     finish_Hashtable = omp_get_wtime();
     Hashtable_duration = (double)(finish_Hashtable - start_Hashtable);
-
-//    printf("i can print PFAC table : %d \n",PFACs[0][1][0] );
-    //free PFAC table
-    for(int GPUnum = 0; GPUnum < stream_N; GPUnum++) {
-        for (int k = 0; k < state_num[GPUnum]; k++) {
-            free(PFACs[GPUnum][k]);
-        }
-    }
-//    printf("i can still print PFAC table : %d \n",PFACs[0][1][0] );
-
-    printf("finsh free PFACs memory\n");
 
     // read input data
     FILE *fpin = fopen(argv[4], "rb");
@@ -196,6 +176,7 @@ int main(int argc, char *argv[]) {
             thread_data_array[stream_id].match_result = match_result[stream_id];
             thread_data_array[stream_id].HTSize = HTSize[stream_id];
             thread_data_array[stream_id].width = width;
+            thread_data_array[stream_id].s0Table = PFACs[stream_id][(final_state_num[stream_id]+1)];
             thread_data_array[stream_id].max_pat_len =  max_pat_len_arr[stream_id];
             thread_data_array[stream_id].r = r[stream_id];
             thread_data_array[stream_id].HT = HT[stream_id];
@@ -228,7 +209,7 @@ int main(int argc, char *argv[]) {
         }
 
 //        printf("CPU thread %d (of %d) uses CUDA device %d\n", GPUnum, stream_N, gpu_id);
-        GPU_TraceTable(thread_data_array[GPUnum], stream[GPUnum], d_input_string[GPUnum], d_r[GPUnum], d_hash_table[GPUnum], d_match_result[GPUnum], d_val_table[GPUnum], d_s0Table[GPUnum]);
+            GPU_TraceTable(thread_data_array[GPUnum], stream[GPUnum], d_input_string[GPUnum], d_r[GPUnum], d_hash_table[GPUnum], d_match_result[GPUnum], d_val_table[GPUnum], d_s0Table[GPUnum]);
 
     }
     finish_multiGPU = omp_get_wtime();
