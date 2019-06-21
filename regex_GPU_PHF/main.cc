@@ -131,6 +131,7 @@ int main(int argc, char *argv[]) {
     fseek(fpin, 0, SEEK_END);
     input_size = ftell(fpin)-1;
     rewind(fpin);
+    printf("input size is %d char\n", input_size);
 
     // allocate host memory: input data
     cudaError_t status;
@@ -243,6 +244,7 @@ int main(int argc, char *argv[]) {
     printf( "3.Time for  %d GPU malloc memory: %lf seconds\n", GPU_N, mallocGPU_duration );
     printf( "4.Time for  %d GPU match progress: %lf seconds\n", GPU_N, mutiGPU_duration );
     printf( "5.Total elapsed time: %lf seconds\n", PFAC_duration + Hashtable_duration + mallocGPU_duration + mutiGPU_duration);
+    printf( "kernel throughput  is %lf Gbps\n", double(input_size/mutiGPU_duration));
     printf("matching process finshed\n");
     printf("/////////////////////////////////////////////\n");
 

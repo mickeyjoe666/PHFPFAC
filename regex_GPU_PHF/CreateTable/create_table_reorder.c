@@ -245,7 +245,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     if (max_pat_length_arr[i] > *max_pat_len) *max_pat_len = max_pat_length_arr[i];
     final_state_num[i] = l;
 //    printf("finsh write PFAC for the last  GPU\n");
-    printf("There are %d states\n", *state_num);
+//    printf("There are %d states\n", *state_num);
 
 }
 
@@ -301,17 +301,16 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
         }
     }
 
-    printf("start initialize PFAC table\n");
+//    printf("start initialize PFAC table\n");
     for ( x = 0; x < PFAC_size; x++) {
         PFAC[x] = (int*)malloc(CHAR_SET*sizeof(int));
         if(PFAC[x] == NULL) {printf("Failed to allocate memory for PFAC\n"); exit(1);}
         // printf("x is %d\n",x);
         memset(PFAC[x], 0xFF, CHAR_SET * sizeof(int));
     }
-    printf("finshed initialize PFAC table\n");
-    // printf("x is %d\n",x);
+//    printf("finshed initialize PFAC table\n");
 
-    printf("Treating %d patterns\n", pattern_num);
+//    printf("Treating %d patterns\n", pattern_num);
     for (int i = 0; i < pattern_num; i++) {
         // load current pattern
         cur_pat = patterns[i];
@@ -320,8 +319,6 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
             *max_pat_length = cur_pat.pattern_len;
         }
         j = 0;
-        // printf("state is %d\n",state);
-        // printf("x is %d\n",x);
         // create transition according to pattern
 
         for ( j = 0; j < cur_pat.pattern_len-1; j++) {
@@ -375,9 +372,6 @@ int** patternsToPFAC(pattern_s patterns[], int pattern_num, int** PFAC, int* max
             exit(1);
         }
     }
-
     *state_num = state_count;
-    printf("Max pat len = %d\n", *max_pat_length);
-
     return PFAC;
 }
