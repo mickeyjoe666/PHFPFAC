@@ -378,9 +378,9 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
     cudaStreamSynchronize(stream);
     //unbind texture memory for each stream
 
-    //    cudaUnbindTexture(tex_r);
-    //    cudaUnbindTexture(tex_HT);
-    //    cudaUnbindTexture(tex_val);
+        cudaUnbindTexture(tex_r);
+        cudaUnbindTexture(tex_HT);
+        cudaUnbindTexture(tex_val);
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
