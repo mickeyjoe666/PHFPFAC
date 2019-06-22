@@ -24,7 +24,7 @@ int GPU_TraceTable(unsigned char *input_string, int input_size, int state_num,
 ****************************************************************************/
 int main(int argc, char *argv[]) {
     //number of GPUs on the machine
-    int GPU_N = 2 ;
+    int GPU_N = 1 ;
     //cudaGetDeviceCount(&GPU_N);
     //Array contaning the number of states in the automaton of each GPU
     int* state_num = (int*)malloc(GPU_N*sizeof(int));
