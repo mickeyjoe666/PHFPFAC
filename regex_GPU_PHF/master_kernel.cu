@@ -27,8 +27,9 @@ struct thread_data{
     int* val;
 };
 
-//texture < int, 1, cudaReadModeElementType > tex_r;
-//texture < int, 1, cudaReadModeElementType > tex_HT;
+texture < int, 1, cudaReadModeElementType > tex_r;
+texture < int, 1, cudaReadModeElementType > tex_HT;
+texture < int, 1, cudaReadModeElementType > tex_val;
 
 // First, look up s_s0Table to jump from initial state to next state.
 // If the thread in still alive, then keep tracing HT (hash table)
@@ -51,13 +52,13 @@ struct thread_data{
                 int key = (state << 8) + inputChar; \
                 int row = key >> width_bit; \
                 int col = key & ((1<<width_bit)-1); \
-                int index = d_r[row] + col; \
+                int index = tex1Dfetch(tex_r, row) + col; \
                 if(index < 0 || index >= HTSize) \
                     state = -1; \
                 else { \
-                      int hashValue = d_hash_table[index]; \
+                      int hashValue =tex1Dfetch(tex_HT, index); \
                       if ((hashValue) == row) \
-                        state = d_val_table[index] ; \
+                        state = tex1Dfetch(tex_val, index) ; \
                       else \
                         state = -1; \
                 } \
@@ -92,9 +93,8 @@ struct thread_data{
 *   Returned   : No use
 ****************************************************************************/
 __global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int input_size,
-                                  int HTSize, int width_bit, int num_final_state, int MaxRow,
-                                  int num_blocks, int boundary, int *d_s0Table, int* d_r, int* d_hash_table,
-                                  int* d_val_table, int max_pat_len) {
+                                  int HTSize, int width_bit, int num_final_state,int num_blocks,
+                                  int boundary, int *d_s0Table, int max_pat_len) {
     int tid = threadIdx.x;
     int gbid = blockIdx.y * gridDim.x + blockIdx.x;   // global block ID
     int start = gbid * PAGE_SIZE_I + tid;
@@ -157,11 +157,11 @@ __global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int
     for (int i = 0; i < 8; i++) {
         unsigned int i_offset = (unsigned int)i * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE;
         for (int j = 0; j < max_pat_len; j++) {
-            if(thread_offset + i_offset + (unsigned int)j < 0) printf("Overflow??\n");
+//            if(thread_offset + i_offset + (unsigned int)j < 0) printf("Overflow??\n");
             if(thread_offset + i_offset + (unsigned int)j < d_match_size) {
                 d_match_result[thread_offset + i_offset + (unsigned int)j] = match[i][j];
             }
-            if(int(match[i][j])<-1) printf("???\n");
+//            if(int(match[i][j])<-1) printf("???\n");
         }
         free(match[i]);
     }
@@ -268,12 +268,6 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
     int MaxRow;
     MaxRow = (state_num*CHAR_SET) / width + 1;
     cudaError_t cuda_err;
-    struct timespec transInTime_begin, transInTime_end;
-    double transInTime;
-    struct timespec transOutTime_begin, transOutTime_end;
-    double transOutTime;
-
-
 
     // set BLOCK_SIZE threads per block, set grid size automatically
     int dimBlock = BLOCK_SIZE ;
@@ -302,7 +296,6 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
-    clock_gettime( CLOCK_REALTIME, &transInTime_begin);
     cudaMemcpyAsync(d_input_string, input_string, input_size, cudaMemcpyHostToDevice, stream);
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
@@ -328,13 +321,8 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
     cudaMemcpyAsync(d_val_table, val, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);//add by qiao 0324
-    clock_gettime( CLOCK_REALTIME, &transInTime_end);
 
-    transInTime = (transInTime_end.tv_sec - transInTime_begin.tv_sec) * 1000.0;
-    transInTime += (transInTime_end.tv_nsec - transInTime_begin.tv_nsec) / 1000000.0;
-    printf("1. H2D transfer time: %lf ms\n", transInTime);
-    printf("   H2D throughput: %lf GBps\n", (input_size+MaxRow*sizeof(int)+HTSize*sizeof(int)+CHAR_SET*sizeof(int))
-                                            /(transInTime*1000000));
+
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
@@ -347,27 +335,30 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
     for (width_bit = 0; (width >> width_bit)!=1; width_bit++);
 
 
-    // record time setting
-    cudaEvent_t start, stop;
-    float time;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start, 0);
+
+    // set texture memory for hash table on device
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc (sizeof(int)*8, 0, 0, 0, cudaChannelFormatKindSigned);
+    cuda_err = cudaBindTexture(0, tex_r, d_r, channelDesc, MaxRow*sizeof(int));
+    if ( cudaSuccess != cuda_err ){
+        printf("cudaBindTexture on tex_r error\n");
+        exit(1) ;
+    }
+
+    cuda_err = cudaBindTexture(0, tex_HT, d_hash_table, channelDesc, HTSize*sizeof(int));
+    if ( cudaSuccess != cuda_err ){
+        printf("cudaBindTexture on tex_HT error\n");
+        exit(1) ;
+    }
+
+    cuda_err = cudaBindTexture(0, tex_val, d_val_table, channelDesc, HTSize*sizeof(int));
+    if ( cudaSuccess != cuda_err ){
+        printf("cudaBindTexture on tex_val error\n");
+        exit(1) ;
+    }
 
     TraceTable_kernel <<< dimGrid, dimBlock, 0, stream >>> (d_match_result, (int *)d_input_string, input_size, HTSize,
-        width_bit, final_state_num, MaxRow, num_blocks, boundary, d_s0Table, d_r, d_hash_table,
-        d_val_table, max_pat_len);
+        width_bit, final_state_num, num_blocks, boundary, d_s0Table, max_pat_len);
 
-    // record time setting
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time, start, stop);
-
-    printf("2. MASTER: The elapsed time is %f ms\n", time);
-    printf("   MASTER: The throughput is %f Gbps\n",(float)(input_size)/(time*1000000)*8 );
-
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
@@ -375,19 +366,7 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
-    clock_gettime( CLOCK_REALTIME, &transOutTime_begin);
-
     cudaMemcpyAsync(match_result, d_match_result, sizeof(int)*max_pat_len*input_size, cudaMemcpyDeviceToHost, stream);
-
-    clock_gettime( CLOCK_REALTIME, &transOutTime_end);
-    transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
-    transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
-    printf("3. D2H transfer time: %lf ms\n", transOutTime);
-    printf("   D2H throughput: %lf GBps\n", (input_size*sizeof(short))/(transOutTime*1000000));
-
-    printf("4. Total elapsed time: %lf ms\n", transInTime+transOutTime+time);
-    printf("   Total throughput: %lf Gbps\n", (double)input_size/((transInTime+transOutTime+time)*1000000)*8);
-
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
@@ -395,7 +374,13 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
+
     cudaStreamSynchronize(stream);
+    //unbind texture memory for each stream
+
+    //    cudaUnbindTexture(tex_r);
+    //    cudaUnbindTexture(tex_HT);
+    //    cudaUnbindTexture(tex_val);
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
@@ -418,36 +403,38 @@ int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_tabl
         printf("cuda free memory error1 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-//    printf("cudaFree(d_input_string); done\n");
-
 
     cudaFree(*d_r);
+
+//    cudaUnbindTexture(tex_r);
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda free memory error2 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-//    printf("cudaFree(d_r); done\n");
 
 
-    //cudaUnbindTexture(tex_HT);
     cudaFree(*d_hash_table);
+
+//    cudaUnbindTexture(tex_HT);
+
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda free memory error3 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-//    printf("cudaFree(d_hash_table); done\n");
 
 
     cudaFree(*d_val_table);//add by qiao0324
+
+//    cudaUnbindTexture(tex_val);
+
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda free memory error4 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-//    printf("cudaFree(d_val_table); done\n");
 
 
     cudaFree(*d_match_result);
@@ -456,11 +443,9 @@ int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_tabl
         printf("cuda free memory error5 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-//    printf("cudaFree(d_match_result); done\n");
 
 
     cudaFree(*d_s0Table);
-//    printf("cudaFree(d_s0Table); done\n");
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {

@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
     }
     // obtain file size:
     fseek(fpin, 0, SEEK_END);
-    input_size = ftell(fpin)-1;
+    input_size = ftell(fpin);
     rewind(fpin);
     printf("input size is %d char\n", input_size);
 
