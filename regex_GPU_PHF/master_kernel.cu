@@ -38,11 +38,9 @@ struct thread_data{
     inputChar = s_in_c[pos]; \
     if (pos < input_size) {\
         state = s_s0Table[inputChar]; \
-        yang123 = 0; \
         if (state >= 0) { \
             if (state < num_final_state) { \
-                match[yang123] = state; \
-                yang123++; \
+                match = state; \
             } \
             pos += 1; \
             while (1) { \
@@ -64,11 +62,7 @@ struct thread_data{
                 \
                 if (state == -1) break; \
                 if (state < num_final_state) { \
-                  match[yang123] = state; \
-                  yang123++; \
-                } \
-                if (yang123 > max_pat_len ){ \
-                  printf("yang123 is bigger than maxlength in thread%d \n",tid); \
+                  match = state; \
                 } \
                 pos += 1; \
             } \
@@ -100,15 +94,9 @@ __global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int
     int start = gbid * PAGE_SIZE_I + tid;
     int pos;   // position to read input for the thread
     int state;
-    int yang123;
+//    int yang123;
     int inputChar;
-    unsigned int *match[(PAGE_SIZE_C / BLOCK_SIZE)] = {0};   // registers to save match result
-    for (int i = 0; i < (PAGE_SIZE_C / BLOCK_SIZE); i++) {
-        match[i] = (unsigned int*)malloc(sizeof(unsigned int) * max_pat_len);
-        for(int j = 0; j < max_pat_len; j++) {
-            match[i][j] = - 1;
-        }
-    }
+    unsigned int match[(PAGE_SIZE_C / BLOCK_SIZE)] = {0};   // registers to save match result
     unsigned char *s_in_c;   // shared memory in char unit
     unsigned char *d_in_c;   // device (global) memory in char unit
     int bdy;
@@ -154,16 +142,9 @@ __global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int
     unsigned int d_match_size = (unsigned int)max_pat_len * (unsigned int)input_size;
     unsigned int thread_offset = (unsigned int)start * (unsigned int)max_pat_len;
     #pragma unroll
-    for (int i = 0; i < 8; i++) {
-        unsigned int i_offset = (unsigned int)i * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE;
-        for (int j = 0; j < max_pat_len; j++) {
-            if(thread_offset + i_offset + (unsigned int)j < 0) printf("Overflow??\n");
-            if(thread_offset + i_offset + (unsigned int)j < d_match_size) {
-                d_match_result[thread_offset + i_offset + (unsigned int)j] = match[i][j];
-            }
-            if(int(match[i][j])<-1) printf("???\n");
-        }
-        free(match[i]);
+    for (int i = 0 ; i < 8 ; i++ ){
+        d_match_result[start] = match[i];
+        start += BLOCK_SIZE ;
     }
 }
 
