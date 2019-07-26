@@ -27,8 +27,7 @@ struct thread_data{
     int* val;
 };
 
-//texture < int, 1, cudaReadModeElementType > tex_r;
-//texture < int, 1, cudaReadModeElementType > tex_HT;
+
 
 // First, look up s_s0Table to jump from initial state to next state.
 // If the thread in still alive, then keep tracing HT (hash table)
@@ -51,13 +50,13 @@ struct thread_data{
                 int key = (state << 8) + inputChar; \
                 int row = key >> width_bit; \
                 int col = key & ((1<<width_bit)-1); \
-                int index = d_r[row] + col; \
+                int index = tex1Dfetch(tex_r, row) + col; \
                 if(index < 0 || index >= HTSize) \
                     state = -1; \
                 else { \
-                      int hashValue = d_hash_table[index]; \
+                      int hashValue = tex1Dfetch(tex_HT, index); \
                       if ((hashValue) == row) \
-                        state = d_val_table[index] ; \
+                        state = tex1Dfetch(tex_val, index); \
                       else \
                         state = -1; \
                 } \
@@ -224,6 +223,32 @@ int GPU_Malloc_Memory(thread_data dataset, unsigned char **d_input_string, int *
         printf("cuda malloc memory error = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
+
+    texture < int, 1, cudaReadModeElementType > tex_r;
+    texture < int, 1, cudaReadModeElementType > tex_HT;
+    texture < int, 1, cudaReadModeElementType > tex_val;
+
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc (sizeof(int)*8, 0, 0, 0, cudaChannelFormatKindSigned);
+
+    cuda_err = cudaBindTexture(0, tex_r, d_r, channelDesc, MaxRow*sizeof(int));
+    if ( cudaSuccess != cuda_err ){
+        printf("cudaBindTexture on tex_r error\n");
+        exit(1) ;
+    }
+
+    cuda_err = cudaBindTexture(0, tex_HT, d_hash_table, channelDesc, HTSize*sizeof(int));
+    if ( cudaSuccess != cuda_err ){
+        printf("cudaBindTexture on tex_HT error\n");
+        exit(1) ;
+    }
+
+    cuda_err = cudaBindTexture(0, tex_val, d_val_table, channelDesc, HTSize*sizeof(int));
+    if ( cudaSuccess != cuda_err ){
+        printf("cudaBindTexture on tex_val error\n");
+        exit(1) ;
+    }
+
+
 
 
     return 0;
@@ -442,6 +467,11 @@ int GPU_Free_memory(unsigned char **d_input_string, int **d_r, int **d_hash_tabl
         printf("cuda free memory error6 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
+
+    cudaUnbindTexture(tex_r);
+    cudaUnbindTexture(tex_val);
+    cudaUnbindTexture(tex_HT);
+
 
     return 0;
 };
