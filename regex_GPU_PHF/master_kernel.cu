@@ -336,6 +336,12 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
     int width_bit;
     for (width_bit = 0; (width >> width_bit)!=1; width_bit++);
 
+    cudaEvent_t start, stop;
+    float time;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
+
 //    cudaStreamSynchronize(stream);
 
     TraceTable_kernel <<< dimGrid, dimBlock, 0, stream >>> (d_match_result, (int *)d_input_string, input_size, HTSize,
@@ -347,6 +353,12 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         printf("cuda kernel excute error = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
+
+    // record time setting
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+    printf("2. MASTER: The elapsed time is %f ms\n", time);
 
 //    cudaStreamSynchronize(stream);
 
