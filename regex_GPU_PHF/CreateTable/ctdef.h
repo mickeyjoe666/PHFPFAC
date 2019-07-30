@@ -6,15 +6,26 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_STATE  131072*6  // max number of state in 17 bits
+const unsigned int MAX_STATE = INT_MAX;
+//#define MAX_STATE  131072  // max number of state in 17 bits
 //why max_state use this number?
 #define CHAR_SET   256     // ASCII character set
 #define EOL        0x10A   // merge '\' and 'n' into escape char '\n'(LF)
                            // differentiate EOL (separate patterns) from merged LF
 
-extern int PFAC_table[MAX_STATE][CHAR_SET];  // 2D PFAC state transition table
-extern int num_output[MAX_STATE];            // num of matched pattern for each state
-extern int *outputs[MAX_STATE];              // list of matched pattern for each state
+// pattern structure
+struct ps {
+    int pattern_id;
+    int pattern_len;
+    char *pat;
+};
+
+typedef struct ps pattern_s;
+
+
+// extern int PFAC_table[MAX_STATE][CHAR_SET];  // 2D PFAC state transition table
+//extern int num_output[MAX_STATE];            // num of matched pattern for each state
+//extern int *outputs[MAX_STATE];              // list of matched pattern for each state
 
 /****************************************************************************
 *   Function   : fgetc_ext
@@ -86,5 +97,8 @@ int fgetc_ext(FILE *fp) {
     
     return ch[0];
 }
+
+pattern_s** divide_patterns(pattern_s*, int);
+int** patternsToPFAC(pattern_s*, int , int** , int* , int*, int*);
 
 #endif

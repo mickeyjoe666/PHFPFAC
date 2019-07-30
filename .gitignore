@@ -1,0 +1,8 @@
+/regex_GPU_PHF/gphf
+/regex_GPU_PHF/*.txt
+*.xml
+depend.make
+*.cmake
+regex_GPU_PHF/cmake-build-debug/CMakeFiles/regex_GPU_PHF.dir
+.idea
+regex_GPU_PHF/cmake-build-debug
