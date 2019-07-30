@@ -18,7 +18,7 @@ cuda13 :
 	$(NVCC30) $(INC30) $(LIB30) $(ARGS13) -o $(o) $(SRC)
 	rm -f *.linkinfo
 cuda20 :	
-	$(NVCC30) $(INC30) $(LIB30) $(ARGS20) -o $(o) $(SRC) 
+	$(NVCC30) $(INC30) $(LIB30) $(ARGS20)  -g -G -o  $(o) $(SRC) 
 	rm -f *.linkinfo
 memuse :
 	$(NVCC30) $(INC30) $(LIB30) $(ARGS20) -Xptxas=-v -o $(o) $(SRC)

@@ -27,7 +27,9 @@ struct thread_data{
     int* val;
 };
 
-
+texture < int, 1, cudaReadModeElementType > tex_r;
+texture < int, 1, cudaReadModeElementType > tex_HT;
+texture < int, 1, cudaReadModeElementType > tex_val;
 
 // First, look up s_s0Table to jump from initial state to next state.
 // If the thread in still alive, then keep tracing HT (hash table)
@@ -37,11 +39,11 @@ struct thread_data{
     inputChar = s_in_c[pos]; \
     if (pos < input_size) {\
         state = s_s0Table[inputChar]; \
-        yang123 = 0; \
+        matchi = 0; \
         if (state >= 0) { \
             if (state < num_final_state) { \
-                match[yang123] = state; \
-                yang123++; \
+                match[matchi] = state; \
+                matchi++; \
             } \
             pos += 1; \
             while (1) { \
@@ -63,11 +65,8 @@ struct thread_data{
                 \
                 if (state == -1) break; \
                 if (state < num_final_state) { \
-                  match[yang123] = state; \
-                  yang123++; \
-                } \
-                if (yang123 > max_pat_len ){ \
-                  printf("yang123 is bigger than maxlength in thread%d \n",tid); \
+                  match[matchi] = state; \
+                  matchi++; \
                 } \
                 pos += 1; \
             } \
@@ -99,14 +98,20 @@ __global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int
     int start = gbid * PAGE_SIZE_I + tid;
     int pos;   // position to read input for the thread
     int state;
-    int yang123;
+    int matchi;
     int inputChar;
+
+    unsigned int startTest = gbid * PAGE_SIZE_C + tid;
+    unsigned int thread_offset = startTest * (unsigned int)max_pat_len;
     unsigned int *match[(PAGE_SIZE_C / BLOCK_SIZE)] = {0};   // registers to save match result
-    for (int i = 0; i < (PAGE_SIZE_C / BLOCK_SIZE); i++) {
-        match[i] = (unsigned int*)malloc(sizeof(unsigned int) * max_pat_len);
-        for(int j = 0; j < max_pat_len; j++) {
-            match[i][j] = - 1;
-        }
+//    for (int i = 0; i < (PAGE_SIZE_C / BLOCK_SIZE); i++) {
+//        match[i] = (unsigned int *) malloc(sizeof(unsigned int) * max_pat_len);
+//        for (int j = 0; j < max_pat_len; j++) {
+//            match[i][j] = -1;
+//        }
+//    }
+    for (unsigned int i = 0; i < (PAGE_SIZE_C / BLOCK_SIZE); i++) {
+        match[i] = &(d_match_result[thread_offset + i * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE]);
     }
     unsigned char *s_in_c;   // shared memory in char unit
     unsigned char *d_in_c;   // device (global) memory in char unit
@@ -148,22 +153,30 @@ __global__ void TraceTable_kernel(unsigned int *d_match_result, int *d_in_i, int
     SUBSEG_MATCH(6, match[6]);
     SUBSEG_MATCH(7, match[7]);
 
+
+//    SUBSEG_MATCH(0, test);
+//    SUBSEG_MATCH(1, &(d_match_result[(unsigned int)start * (unsigned int)max_pat_len + (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE]));
+//    SUBSEG_MATCH(2, &d_match_result[(unsigned int)start * (unsigned int)max_pat_len + (unsigned int) 2 * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE]);
+//    SUBSEG_MATCH(3, &d_match_result[(unsigned int)start * (unsigned int)max_pat_len + (unsigned int) 3 * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE]);
+//    SUBSEG_MATCH(4, &d_match_result[(unsigned int)start * (unsigned int)max_pat_len + (unsigned int) 4 * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE]);
+//    SUBSEG_MATCH(5, &d_match_result[(unsigned int)start * (unsigned int)max_pat_len + (unsigned int) 5 * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE]);
+//    SUBSEG_MATCH(6, &d_match_result[(unsigned int)start * (unsigned int)max_pat_len + (unsigned int) 6 * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE]);
+//    SUBSEG_MATCH(7, &d_match_result[(unsigned int)start * (unsigned int)max_pat_len + (unsigned int) 7 * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE]);
+
     // save match result from registers to global memory
-    start = gbid * PAGE_SIZE_C + tid;
-    unsigned int d_match_size = (unsigned int)max_pat_len * (unsigned int)input_size;
-    unsigned int thread_offset = (unsigned int)start * (unsigned int)max_pat_len;
-    #pragma unroll
-    for (int i = 0; i < 8; i++) {
-        unsigned int i_offset = (unsigned int)i * (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE;
-        for (int j = 0; j < max_pat_len; j++) {
-            if(thread_offset + i_offset + (unsigned int)j < 0) printf("Overflow??\n");
-            if(thread_offset + i_offset + (unsigned int)j < d_match_size) {
-                d_match_result[thread_offset + i_offset + (unsigned int)j] = match[i][j];
-            }
-            if(int(match[i][j])<-1) printf("???\n");
-        }
-        free(match[i]);
-    }
+//    start = gbid * PAGE_SIZE_C + tid;
+//    unsigned int d_match_size = (unsigned int)max_pat_len * (unsigned int)input_size;
+//    unsigned int thread_offset = (unsigned int)start * (unsigned int)max_pat_len;
+//    #pragma unroll
+//    for (int i = 0; i < 8; i++) {
+//        for (int j = 0; j < max_pat_len; j++) {
+//            if(thread_offset + (unsigned int)j < d_match_size) {
+//                d_match_result[thread_offset + (unsigned int)j] = match[i][j];
+//            }
+//        }
+//        thread_offset += (unsigned int)max_pat_len * (unsigned int)BLOCK_SIZE;
+//        free(match[i]);
+//    }
 }
 
 // First, look up s_s0Table to jump from initial state to next state.
@@ -198,6 +211,12 @@ int GPU_Malloc_Memory(thread_data dataset, unsigned char **d_input_string, int *
 //    unsigned int *d_match_result;
 //    int *d_val_table;//add by qiao 0324
 //    int *d_s0Table;
+
+    struct timespec test_b, test_e;
+    double tesTime;
+
+    clock_gettime( CLOCK_REALTIME, &test_b);
+
     int MaxRow;
     MaxRow = (state_num*CHAR_SET) / width + 1;
 
@@ -214,7 +233,7 @@ int GPU_Malloc_Memory(thread_data dataset, unsigned char **d_input_string, int *
 
 
     cudaMalloc((void **) d_match_result, (size_t)max_pat_len*(size_t)input_size*sizeof(unsigned int));
-
+    cudaMemset((void*) *d_match_result, 0xFF, (size_t)max_pat_len*(size_t)input_size*sizeof(unsigned int));
 
     cudaMalloc((void **) d_s0Table, CHAR_SET*sizeof(int));
 
@@ -224,30 +243,10 @@ int GPU_Malloc_Memory(thread_data dataset, unsigned char **d_input_string, int *
         exit(1) ;
     }
 
-    texture < int, 1, cudaReadModeElementType > tex_r;
-    texture < int, 1, cudaReadModeElementType > tex_HT;
-    texture < int, 1, cudaReadModeElementType > tex_val;
-
-    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc (sizeof(int)*8, 0, 0, 0, cudaChannelFormatKindSigned);
-
-    cuda_err = cudaBindTexture(0, tex_r, d_r, channelDesc, MaxRow*sizeof(int));
-    if ( cudaSuccess != cuda_err ){
-        printf("cudaBindTexture on tex_r error\n");
-        exit(1) ;
-    }
-
-    cuda_err = cudaBindTexture(0, tex_HT, d_hash_table, channelDesc, HTSize*sizeof(int));
-    if ( cudaSuccess != cuda_err ){
-        printf("cudaBindTexture on tex_HT error\n");
-        exit(1) ;
-    }
-
-    cuda_err = cudaBindTexture(0, tex_val, d_val_table, channelDesc, HTSize*sizeof(int));
-    if ( cudaSuccess != cuda_err ){
-        printf("cudaBindTexture on tex_val error\n");
-        exit(1) ;
-    }
-
+    clock_gettime( CLOCK_REALTIME, &test_e);
+    tesTime = (test_e.tv_sec - test_b.tv_sec) * 1000.0;
+    tesTime += (test_e.tv_nsec - test_b.tv_nsec) / 1000000.0;
+    printf("time for malloc memory and memset: %lf ms\n", tesTime);
 
 
 
@@ -293,7 +292,37 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
     int MaxRow;
     MaxRow = (state_num*CHAR_SET) / width + 1;
     cudaError_t cuda_err;
+    struct timespec transInTime_begin, transInTime_end;
+    double transInTime;
+    struct timespec transOutTime_begin, transOutTime_end, test_b, test_e;
+    double transOutTime, tesTime;
+    clock_gettime( CLOCK_REALTIME, &test_b);
 
+
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc (sizeof(int)*8, 0, 0, 0, cudaChannelFormatKindSigned);
+
+    cuda_err = cudaBindTexture(0, tex_r, d_r, channelDesc, MaxRow*sizeof(int));
+    if ( cudaSuccess != cuda_err ){
+        printf("cudaBindTexture on tex_r error\n");
+        exit(1) ;
+    }
+
+    cuda_err = cudaBindTexture(0, tex_HT, d_hash_table, channelDesc, HTSize*sizeof(int));
+    if ( cudaSuccess != cuda_err ){
+        printf("cudaBindTexture on tex_HT error\n");
+        exit(1) ;
+    }
+
+    cuda_err = cudaBindTexture(0, tex_val, d_val_table, channelDesc, HTSize*sizeof(int));
+    if ( cudaSuccess != cuda_err ){
+        printf("cudaBindTexture on tex_val error\n");
+        exit(1) ;
+    }
+
+    clock_gettime( CLOCK_REALTIME, &test_e);
+    tesTime = (test_e.tv_sec - test_b.tv_sec) * 1000.0;
+    tesTime += (test_e.tv_nsec - test_b.tv_nsec) / 1000000.0;
+    printf("texture time: %lf ms\n", tesTime);
 
 
 
@@ -324,38 +353,45 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
+    clock_gettime( CLOCK_REALTIME, &transInTime_begin);
 
-    cudaMemcpyAsync(d_input_string, input_string, input_size, cudaMemcpyHostToDevice, stream);
+
+    cudaMemcpy(d_input_string, input_string, input_size, cudaMemcpyHostToDevice);
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda memcpy error1 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-    cudaMemcpyAsync(d_r, r, MaxRow*sizeof(int), cudaMemcpyHostToDevice, stream);
+    cudaMemcpy(d_r, r, MaxRow*sizeof(int), cudaMemcpyHostToDevice);
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda memcpy error2 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-    cudaMemcpyAsync(d_hash_table, HT, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);
+    cudaMemcpy(d_hash_table, HT, HTSize*sizeof(int), cudaMemcpyHostToDevice);
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda memcpy error3 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-    cudaMemcpyAsync(d_s0Table, s0Table, CHAR_SET*sizeof(int), cudaMemcpyHostToDevice, stream);
+    cudaMemcpy(d_s0Table, s0Table, CHAR_SET*sizeof(int), cudaMemcpyHostToDevice);
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda memcpy error4 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
-    cudaMemcpyAsync(d_val_table, val, HTSize*sizeof(int), cudaMemcpyHostToDevice, stream);//add by qiao 0324
+    cudaMemcpy(d_val_table, val, HTSize*sizeof(int), cudaMemcpyHostToDevice);//add by qiao 0324
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda memcpy error5 = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
+
+    clock_gettime( CLOCK_REALTIME, &transInTime_end);
+    transInTime = (transInTime_end.tv_sec - transInTime_begin.tv_sec) * 1000.0;
+    transInTime += (transInTime_end.tv_nsec - transInTime_begin.tv_nsec) / 1000000.0;
+    printf("1. H2D transfer time: %lf ms\n", transInTime);
 
         // count bit of width (ex: if width is 256, width_bit is 8)
     int width_bit;
@@ -367,9 +403,7 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
 
-//    cudaStreamSynchronize(stream);
-
-    TraceTable_kernel <<< dimGrid, dimBlock, 0, stream >>> (d_match_result, (int *)d_input_string, input_size, HTSize,
+    TraceTable_kernel <<< dimGrid, dimBlock, 0>>> (d_match_result, (int *)d_input_string, input_size, HTSize,
         width_bit, final_state_num, MaxRow, num_blocks, boundary, d_s0Table, d_r, d_hash_table,
         d_val_table, max_pat_len);
 
@@ -382,12 +416,22 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
     // record time setting
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
+
     cudaEventElapsedTime(&time, start, stop);
     printf("2. MASTER: The elapsed time is %f ms\n", time);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 
 //    cudaStreamSynchronize(stream);
 
-    cudaMemcpyAsync(match_result, d_match_result, sizeof(int)*max_pat_len*input_size, cudaMemcpyDeviceToHost, stream);
+    clock_gettime( CLOCK_REALTIME, &transOutTime_begin);
+    cudaMemcpy(match_result, d_match_result, sizeof(int)*max_pat_len*input_size, cudaMemcpyDeviceToHost);
+    clock_gettime( CLOCK_REALTIME, &transOutTime_end);
+    transOutTime = (transOutTime_end.tv_sec - transOutTime_begin.tv_sec) * 1000.0;
+    transOutTime += (transOutTime_end.tv_nsec - transOutTime_begin.tv_nsec) / 1000000.0;
+    printf("3. D2H transfer time: %lf ms\n", transOutTime);
+    printf("4. Total elapsed time: %lf ms\n", transInTime+transOutTime+time);
+
 
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
@@ -395,13 +439,16 @@ int GPU_TraceTable(thread_data dataset, cudaStream_t stream, unsigned char *d_in
         exit(1) ;
     }
 
-    cudaStreamSynchronize(stream);
-
     cuda_err = cudaGetLastError() ;
     if ( cudaSuccess != cuda_err ) {
         printf("cuda streamsync error = %s\n", cudaGetErrorString (cuda_err));
         exit(1) ;
     }
+    clock_gettime( CLOCK_REALTIME, &test_e);
+    tesTime = (test_e.tv_sec - test_b.tv_sec) * 1000.0;
+    tesTime += (test_e.tv_nsec - test_b.tv_nsec) / 1000000.0;
+    printf("full time: %lf ms\n", tesTime);
+
     return 0 ;
 
 

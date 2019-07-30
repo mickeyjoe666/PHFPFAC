@@ -203,7 +203,8 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     int ch;
     int state;          // to traverse transition table
     int state_count;    // counter for creating new state
-    int initial_state, pattern_num, GPU_S;
+    int initial_state, pattern_num;
+    int GPU_S = 4;
     //pattern_s all_pattern[MAX_STATE];
     pattern_s* all_pattern = (pattern_s*)malloc(INITIAL_SIZE*sizeof(pattern_s));
 
@@ -212,7 +213,7 @@ int create_table_reorder(char *patternfilename, int *state_num, int *final_state
     printf("finshed read pattern\n");
 
 //    printf("pattern_num is %d\n",pattern_num);
-    cudaGetDeviceCount(&GPU_S);
+//    cudaGetDeviceCount(&GPU_S);
     GPU_N = GPU_S * streamnum;
 
     //the number of patterns to feed to GPUs 0 to GPU_N-2

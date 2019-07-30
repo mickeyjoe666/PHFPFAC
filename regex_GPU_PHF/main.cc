@@ -5,6 +5,7 @@
 #include "CreateTable/create_PFAC_table_reorder.c"
 #include "PHF/phf.c"
 #include <omp.h>
+#include <time.h>
 
 
 //int num_output[MAX_STATE];            // num of matched pattern for each state
@@ -82,6 +83,11 @@ int main(int argc, char *argv[]) {
     struct thread_data thread_data_array[stream_N];
     double start_PFAC, finish_PFAC, start_Hashtable, finish_Hashtable, start_multiGPU, finish_multiGPU, start_mallocGPU, finish_mallocGPU;
     double  PFAC_duration, Hashtable_duration,mallocGPU_duration, mutiGPU_duration;
+
+
+    struct timespec test_b, test_e, test_b1, test_e1, test_b2, test_e2;
+    double tesTime, tesTime1, tesTime2;
+
     
     // check command line arguments
     if (argc != 5) {
@@ -133,6 +139,8 @@ int main(int argc, char *argv[]) {
     rewind(fpin);
     printf("input size is %d char\n", input_size);
 
+
+
     // allocate host memory: input data
     cudaError_t status;
     //status = cudaMallocHost((void **) &input_string, sizeof(char)*input_size);
@@ -158,9 +166,19 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+
+
+    //start record time
+    clock_gettime( CLOCK_REALTIME, &test_b);
+
+    clock_gettime( CLOCK_REALTIME, &test_b1);
     //create stream for each GPU
     cudaStream_t stream[stream_N];
+
     start_mallocGPU = omp_get_wtime();
+
+    omp_set_num_threads(GPU_N);
+    #pragma omp parallel for
     for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
         cudaSetDevice(GPUnum);
         if (cudaSetDevice(GPUnum) != cudaSuccess) {
@@ -168,6 +186,8 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         cudaDeviceSetLimit(cudaLimitMallocHeapSize, 128 * 1024 * 1024);//add by qiao 20190402
+
+        clock_gettime( CLOCK_REALTIME, &test_b2);
         for (int i = 0; i < streamnum; i++) {
             int stream_id = GPUnum*streamnum +i;
             thread_data_array[stream_id].input_string = input_string;
@@ -189,10 +209,16 @@ int main(int argc, char *argv[]) {
             cudaStreamCreate(&stream[stream_id]);
 
         }
+        clock_gettime( CLOCK_REALTIME, &test_e2);
+        tesTime2 = (test_e2.tv_sec - test_b2.tv_sec) * 1000.0;
+        tesTime2 += (test_e2.tv_nsec - test_b2.tv_nsec) / 1000000.0;
+        printf("time for malloc in loop: %lf ms\n", tesTime2);
 
     }
     finish_mallocGPU = omp_get_wtime();
     mallocGPU_duration = (double)(finish_mallocGPU - start_mallocGPU) ;
+
+
 
     start_multiGPU = omp_get_wtime();
     //start multiGPU thread
@@ -216,7 +242,13 @@ int main(int argc, char *argv[]) {
     finish_multiGPU = omp_get_wtime();
     mutiGPU_duration = (double)(finish_multiGPU - start_multiGPU) ;
 
+    clock_gettime( CLOCK_REALTIME, &test_e);
+    tesTime = (test_e.tv_sec - test_b.tv_sec) * 1000.0;
+    tesTime += (test_e.tv_nsec - test_b.tv_nsec) / 1000000.0;
+    printf("time before free memory: %lf ms\n", tesTime);
 
+
+    clock_gettime( CLOCK_REALTIME, &test_b);
 
     //synchronise threads and free memory on GPU
     for(int GPUnum = 0; GPUnum < GPU_N; GPUnum++) {
@@ -238,18 +270,35 @@ int main(int argc, char *argv[]) {
             cudaStreamDestroy(stream[stream_id]);
         }
     }
+
+    clock_gettime( CLOCK_REALTIME, &test_e);
+    tesTime = (test_e.tv_sec - test_b.tv_sec) * 1000.0;
+    tesTime += (test_e.tv_nsec - test_b.tv_nsec) / 1000000.0;
+    printf(" time for free memory  : %lf ms\n", tesTime);
+
     printf("/////////////////////////////////////////////\n");
     printf( "1.Time for  create PFAC : %lf seconds\n",  PFAC_duration);
     printf( "2.Time for  create Hashtable : %lf seconds\n",  Hashtable_duration);
-    printf( "3.Time for  %d GPU malloc memory: %lf seconds\n", GPU_N, mallocGPU_duration );
-    printf( "4.Time for  %d GPU match progress: %lf seconds\n", GPU_N, mutiGPU_duration );
-    printf( "5.Total elapsed time: %lf seconds\n", PFAC_duration + Hashtable_duration + mallocGPU_duration + mutiGPU_duration);
-    printf( "kernel throughput  is %lf Gbps\n", double(input_size/mutiGPU_duration));
+    printf( "3.Time for  %d GPU malloc memory: %lf mseconds\n", GPU_N, (mallocGPU_duration)*1000 );
+    printf( "4.Time for  %d GPU match progress: %lf mseconds\n", GPU_N, (mutiGPU_duration)*1000 );
+    printf( "5.Total elapsed time: %lf mseconds\n",  (mallocGPU_duration + mutiGPU_duration)*1000);
+//    printf( "kernel throughput  is %lf Gbps\n", double(input_size/mutiGPU_duration));
     printf("matching process finshed\n");
     printf("/////////////////////////////////////////////\n");
 
     cudaFreeHost(input_string);
+
+
+    clock_gettime( CLOCK_REALTIME, &test_e1);
+    tesTime1 = (test_e1.tv_sec - test_b1.tv_sec) * 1000.0;
+    tesTime1 += (test_e1.tv_nsec - test_b1.tv_nsec) / 1000000.0;
+    printf("time for all match process: %lf ms\n", tesTime1);
+
 //    printf("cudaFreeHost(input_string); done\n");
+
+
+
+    clock_gettime( CLOCK_REALTIME, &test_b);
 
     //merge match result from each thread
     int* match_result_aggreg = (int*)malloc(sizeof(int)*(size_t)input_size*(size_t)max_pat_len);
@@ -257,7 +306,7 @@ int main(int argc, char *argv[]) {
     for (int GPUnum = 0; GPUnum < stream_N; GPUnum++) {
         for (i = 0; i < input_size; i++) {
             unsigned int k = (unsigned int)i * (unsigned int)max_pat_len;
-            while(match_result_aggreg[k] != -1) {
+            while(k < sizeof(int)*(size_t)input_size*(size_t)max_pat_len && match_result_aggreg[k] != -1) {
                 k++;
             }
             for (j = 0; j < max_pat_len_arr[GPUnum]; j++) {
@@ -273,6 +322,15 @@ int main(int argc, char *argv[]) {
         cudaFreeHost(match_result[GPUnum]);
 //        printf("match_result memory is freed, %d\n",GPUnum);
     }
+
+
+
+    clock_gettime( CLOCK_REALTIME, &test_e);
+    tesTime = (test_e.tv_sec - test_b.tv_sec) * 1000.0;
+    tesTime += (test_e.tv_nsec - test_b.tv_nsec) / 1000000.0;
+    printf("time for merge result: %lf ms\n", tesTime);
+
+
     //output match result file
     const char * output_file_name = "GPU_match_result.txt";
     FILE *fpout1 = fopen(output_file_name, "w");
